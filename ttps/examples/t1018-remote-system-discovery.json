@@ -1,0 +1,12 @@
+{
+  "id": "T1018",
+  "name": "Remote System Discovery",
+  "description": "Enumerate ARP neighbors visible on the local network. MITRE ATT&CK technique T1018 — adversaries probe for nearby hosts before lateral movement.",
+  "platforms": ["linux"],
+  "exec": "ip neigh show",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": null,
+    "stdout_excludes": []
+  }
+}
