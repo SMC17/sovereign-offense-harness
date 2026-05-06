@@ -1,0 +1,12 @@
+{
+  "id": "T1082",
+  "name": "System Information Discovery",
+  "description": "Read /etc/os-release and uname output to fingerprint the host. MITRE ATT&CK T1082 — typically the first technique post-foothold.",
+  "platforms": ["linux"],
+  "exec": "uname -a; cat /etc/os-release 2>/dev/null || true",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "Linux",
+    "stdout_excludes": []
+  }
+}

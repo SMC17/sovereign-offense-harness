@@ -1,0 +1,17 @@
+.{
+    .name = .sovereign_offense_harness,
+    .fingerprint = 0x4168a60862d050,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.16.0",
+
+    .dependencies = .{},
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "ttps",
+        "LICENSE",
+        "README.md",
+    },
+}
