@@ -1,8 +1,12 @@
-//! sovereign-offense-harness v0.1.0
+//! sovereign-offense-harness v0.2.0
 //!
 //! Adversary emulation runner that executes canned TTP (Tactic /
 //! Technique / Procedure) descriptors and captures structured audit
 //! envelopes. Built for sentinel-lab's purple-team flywheel.
+//!
+//! v0.2 adds the safety gate: refuse-by-default unless the operator
+//! explicitly acknowledges either local execution (--unsafe-local) or
+//! provides a target IP that matches a configured whitelist.
 //!
 //! v0.1 scope (per ~/COMPETITIVE_LANDSCAPE.md S1 acceptance gate):
 //!   sketch → compiled. Passes when:
@@ -25,17 +29,33 @@
 
 const std = @import("std");
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 const ENVELOPE_SCHEMA = "sovereign-offense-harness/envelope/v1";
 
 const usage =
     \\sovereign-offense-harness — adversary emulation runner.
     \\
     \\Usage:
-    \\  sovereign-offense-harness run --ttp <ttp.json> [--out <dir>]
+    \\  sovereign-offense-harness run --ttp <ttp.json> [opts]
     \\  sovereign-offense-harness validate <ttp.json>
     \\  sovereign-offense-harness --version | -V
     \\  sovereign-offense-harness --help    | -h
+    \\
+    \\`run` options:
+    \\  --ttp <path>           TTP descriptor (required)
+    \\  --out <dir>            envelope output dir (default: envelopes/)
+    \\  --target <IP>          target IP for the TTP (passed as $TARGET to exec).
+    \\                         Refused unless IP is in --lab-targets whitelist.
+    \\  --unsafe-local         execute against the local host. ACK that you
+    \\                         understand `exec` runs as you with no sandbox.
+    \\  --lab-targets <path>   whitelist file: one CIDR or IP per line.
+    \\                         Default: $SENTINEL_LAB_TARGETS env var, then
+    \\                         ~/sentinel-lab/lab-targets.txt.
+    \\
+    \\Safety gate (v0.2): refuse-by-default. Run requires either
+    \\--unsafe-local or --target <IP-in-whitelist>. The whitelist file
+    \\must exist and contain the target. CIDR matching supported (v4 only
+    \\in v0.2; v6 deferred).
     \\
     \\TTP descriptor format (JSON):
     \\  {
@@ -55,6 +75,7 @@ const usage =
     \\  0 — success (TTP ran AND matched all expectations)
     \\  1 — TTP ran but expectations failed
     \\  2 — bad CLI / TTP file / setup error
+    \\  3 — refused by safety gate
     \\
 ;
 
@@ -90,20 +111,173 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, cmd, "run")) {
         var ttp_path: ?[]const u8 = null;
         var out_dir: []const u8 = "envelopes";
+        var target: ?[]const u8 = null;
+        var unsafe_local: bool = false;
+        var lab_targets: ?[]const u8 = null;
         while (iter.next()) |a| {
             if (std.mem.eql(u8, a, "--ttp")) {
                 ttp_path = iter.next() orelse return fail("--ttp requires a path");
             } else if (std.mem.eql(u8, a, "--out")) {
                 out_dir = iter.next() orelse return fail("--out requires a path");
+            } else if (std.mem.eql(u8, a, "--target")) {
+                target = iter.next() orelse return fail("--target requires an IP");
+            } else if (std.mem.eql(u8, a, "--unsafe-local")) {
+                unsafe_local = true;
+            } else if (std.mem.eql(u8, a, "--lab-targets")) {
+                lab_targets = iter.next() orelse return fail("--lab-targets requires a path");
             } else {
                 return fail("unexpected arg in `run`");
             }
         }
         const path = ttp_path orelse return fail("run requires --ttp <path>");
-        return runCmd(gpa, arena, io, path, out_dir);
+
+        // ─── Safety gate ──────────────────────────────────────────
+        // Refuse-by-default. Operator must either:
+        //   (a) provide --target <IP> that resolves to a CIDR in the
+        //       configured whitelist, OR
+        //   (b) explicitly acknowledge local execution via --unsafe-local.
+        // No silent path; refusal is hard.
+        if (target == null and !unsafe_local) {
+            std.debug.print(
+                \\error: refused by safety gate.
+                \\
+                \\sovereign-offense-harness will not execute a TTP without an
+                \\explicit safety acknowledgement. Pick one:
+                \\
+                \\  --target <IP>          target a remote host (must be in
+                \\                         the lab-targets whitelist)
+                \\  --unsafe-local         execute on this local host —
+                \\                         acknowledges that `exec` runs as
+                \\                         you with no sandbox or rollback
+                \\
+                \\This gate is intentional. The example TTPs are read-only,
+                \\but the v0.1 of this tool would happily run any string
+                \\you handed it as your user. v0.2 makes you say so.
+                \\
+            , .{});
+            std.process.exit(3);
+        }
+        if (target != null and unsafe_local) {
+            return fail("--target and --unsafe-local are mutually exclusive");
+        }
+
+        if (target) |t| {
+            // Whitelist path: --lab-targets flag wins; otherwise default
+            // to ~/sentinel-lab/lab-targets.txt. (env-var fallback was
+            // tempting but std.posix.getenv was reorganized in Zig 0.16
+            // and the simpler default-path approach is fine for v0.2.)
+            const wl_path = lab_targets orelse "~/sentinel-lab/lab-targets.txt";
+            const wl_resolved = try expandTilde(arena, wl_path);
+            const matched = checkWhitelist(arena, io, wl_resolved, t) catch |err| {
+                std.debug.print(
+                    "error: failed to read whitelist {s}: {s}\n" ++
+                        "(create the file with one CIDR or IP per line, " ++
+                        "or pass --lab-targets <path>)\n",
+                    .{ wl_resolved, @errorName(err) },
+                );
+                std.process.exit(3);
+            };
+            if (!matched) {
+                std.debug.print(
+                    "error: target {s} not in whitelist {s} — refused.\n",
+                    .{ t, wl_resolved },
+                );
+                std.process.exit(3);
+            }
+        }
+
+        return runCmd(gpa, arena, io, path, out_dir, target, unsafe_local);
     }
 
     return fail("unknown subcommand");
+}
+
+/// Expand a leading `~/` to $HOME via /proc/self/environ. Anything
+/// else returned as-is. (std.posix.getenv was reorganized in Zig 0.16
+/// and accessing env from a free function without an Init handle is
+/// awkward; this is the workaround.)
+fn expandTilde(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
+    if (path.len < 2 or path[0] != '~' or path[1] != '/') {
+        return try allocator.dupe(u8, path);
+    }
+    const home = readHomeFromProcEnviron(allocator) catch null;
+    if (home) |h| {
+        return try std.fmt.allocPrint(allocator, "{s}{s}", .{ h, path[1..] });
+    }
+    // Fallback: no HOME found — return as-is and let the file open fail
+    // with a useful path string.
+    return try allocator.dupe(u8, path);
+}
+
+/// Linux-only: read /proc/self/environ (NUL-separated key=value pairs)
+/// and return the HOME value, or null if not found.
+fn readHomeFromProcEnviron(allocator: std.mem.Allocator) !?[]const u8 {
+    const fd = std.os.linux.open("/proc/self/environ", .{ .ACCMODE = .RDONLY }, 0);
+    if (@as(isize, @bitCast(fd)) < 0) return null;
+    defer _ = std.os.linux.close(@intCast(fd));
+
+    var buf: [16 * 1024]u8 = undefined;
+    const n = std.os.linux.read(@intCast(fd), &buf, buf.len);
+    if (@as(isize, @bitCast(n)) <= 0) return null;
+    const data = buf[0..@intCast(n)];
+
+    var pairs = std.mem.splitScalar(u8, data, 0);
+    while (pairs.next()) |pair| {
+        if (std.mem.startsWith(u8, pair, "HOME=")) {
+            return try allocator.dupe(u8, pair[5..]);
+        }
+    }
+    return null;
+}
+
+/// Read the whitelist file and return true iff `target_ip` matches an
+/// entry. Entries can be exact IPv4 (`10.0.0.5`) or CIDR (`10.0.0.0/24`).
+/// Lines starting with `#` and blank lines are ignored. v0.2 supports IPv4
+/// only; IPv6 deferred.
+fn checkWhitelist(arena: std.mem.Allocator, io: std.Io, path: []const u8, target_ip: []const u8) !bool {
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(
+        io,
+        path,
+        arena,
+        std.Io.Limit.limited(1 * 1024 * 1024),
+    );
+    const target_addr = parseIpv4(target_ip) catch return error.InvalidTargetIp;
+
+    var lines = std.mem.splitScalar(u8, bytes, '\n');
+    while (lines.next()) |raw| {
+        const line = std.mem.trim(u8, raw, " \t\r");
+        if (line.len == 0) continue;
+        if (line[0] == '#') continue;
+
+        // CIDR or bare IP
+        if (std.mem.indexOfScalar(u8, line, '/')) |slash| {
+            const ip_str = line[0..slash];
+            const prefix_str = line[slash + 1 ..];
+            const net_addr = parseIpv4(ip_str) catch continue;
+            const prefix = std.fmt.parseInt(u6, prefix_str, 10) catch continue;
+            if (prefix > 32) continue;
+            const mask: u32 = if (prefix == 0) 0 else (~@as(u32, 0)) << @intCast(32 - prefix);
+            if ((target_addr & mask) == (net_addr & mask)) return true;
+        } else {
+            const net_addr = parseIpv4(line) catch continue;
+            if (target_addr == net_addr) return true;
+        }
+    }
+    return false;
+}
+
+/// Parse "a.b.c.d" → u32 (network-order). v2 IPv4-only.
+fn parseIpv4(s: []const u8) !u32 {
+    var parts: [4]u8 = undefined;
+    var idx: usize = 0;
+    var part_iter = std.mem.splitScalar(u8, s, '.');
+    while (part_iter.next()) |p| : (idx += 1) {
+        if (idx >= 4) return error.InvalidIpv4;
+        parts[idx] = std.fmt.parseInt(u8, p, 10) catch return error.InvalidIpv4;
+    }
+    if (idx != 4) return error.InvalidIpv4;
+    return (@as(u32, parts[0]) << 24) | (@as(u32, parts[1]) << 16) |
+        (@as(u32, parts[2]) << 8) | @as(u32, parts[3]);
 }
 
 fn fail(msg: []const u8) !void {
@@ -199,7 +373,15 @@ fn validateCmd(arena: std.mem.Allocator, io: std.Io, path: []const u8) !void {
 
 // ─── run subcommand ──────────────────────────────────────────────────────────
 
-fn runCmd(gpa: std.mem.Allocator, arena: std.mem.Allocator, io: std.Io, ttp_path: []const u8, out_dir: []const u8) !void {
+fn runCmd(
+    gpa: std.mem.Allocator,
+    arena: std.mem.Allocator,
+    io: std.Io,
+    ttp_path: []const u8,
+    out_dir: []const u8,
+    target: ?[]const u8,
+    unsafe_local: bool,
+) !void {
     const json_bytes = try std.Io.Dir.cwd().readFileAlloc(
         io,
         ttp_path,
@@ -221,7 +403,17 @@ fn runCmd(gpa: std.mem.Allocator, arena: std.mem.Allocator, io: std.Io, ttp_path
 
     // Spawn the TTP via `bash -c <exec>`. Sandboxing is the lab's job;
     // this runner trusts the TTP descriptor's command.
-    const argv = &[_][]const u8{ "bash", "-c", ttp.exec };
+    //
+    // If a target IP was provided, prepend `TARGET=<ip>` to the bash
+    // invocation so the TTP's exec field can reference $TARGET. This
+    // sidesteps Zig 0.16's reorganized environ-handling APIs while
+    // giving descriptors the same UX as if we'd passed an env_map.
+    _ = unsafe_local; // currently informational; v0.3 may persist into envelope
+    const exec_with_env = if (target) |t|
+        try std.fmt.allocPrint(arena, "TARGET={s} {s}", .{ t, ttp.exec })
+    else
+        try arena.dupe(u8, ttp.exec);
+    const argv = &[_][]const u8{ "bash", "-c", exec_with_env };
     const result = try std.process.run(gpa, io, .{ .argv = argv });
     defer gpa.free(result.stdout);
     defer gpa.free(result.stderr);

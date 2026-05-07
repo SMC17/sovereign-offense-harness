@@ -5,11 +5,10 @@
 > SHA-256 + host fingerprint, and writes a structured JSON audit
 > envelope. Single binary. No third-party Zig deps.
 >
-> **Status: v0.1.0 — early; primitive, not a tool.** Two example TTPs
-> shipped. No safety gate (target whitelist) yet — see Safety section.
-> No Atomic Red Team library compatibility yet (planned). The Zig
-> binary is real; the surrounding "tool" claims most adversary-
-> emulation products make are not yet supported here.
+> **Status: v0.2.0 — early.** Two example TTPs shipped. **v0.2 added
+> the safety gate**: refuse-by-default unless either `--target <IP>`
+> matches a whitelist OR `--unsafe-local` is passed. No ART JSON
+> library compat yet (v0.3 plan).
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Zig 0.16](https://img.shields.io/badge/Zig-0.16-orange.svg)](https://ziglang.org/)
@@ -124,19 +123,18 @@ What works:
   (T1018 `ip neigh show`, T1082 `uname -a`).
 
 What does NOT work yet:
-- **No safety gate** — see Safety section. Any TTP descriptor's `exec`
-  field runs as the invoking user with no review. v0.2 plan adds a
-  target-IP whitelist refuse-by-default.
 - **No envelope schema validator** — the schema URI in the envelope is
   whatever the writer puts in it. There is no schema enforcement and no
   consumer-side validator beyond "is this valid JSON."
-- **No Atomic Red Team compatibility** — v0.4 plan. Today the descriptor
-  format is custom (close to but not identical to ART JSON).
+- **No Atomic Red Team compatibility** — v0.3 plan (read ART JSON
+  format directly). Today the descriptor format is custom (close to but
+  not identical to ART).
 - **No multi-host orchestration** — explicitly out of scope.
 - **No detection-engineering output** — Sigma rule emission and
   Velociraptor artifact stubs are v0.4 plans.
-- **No "local-LLM TTP planner"** — that's v0.3 vaporware right now;
+- **No "local-LLM TTP planner"** — that's v0.4+ vaporware right now;
   no design, no integration, no working code.
+- **IPv6 in the whitelist** — v0.2 supports IPv4 only.
 
 Roadmap in [STATUS.md](STATUS.md). Treat the version numbers as planning
 labels, not promises.
@@ -164,29 +162,59 @@ sovereign-offense-harness run --ttp my-ttp.json --out /var/lib/sentinel-lab/enve
 
 ## ⚠️ Safety — read this before running anything
 
-**v0.1 will execute any string in a TTP's `exec` field as the invoking
-user, with no allowlist, no sandbox, no target check.** A malicious TTP
-descriptor with `"exec": "rm -rf $HOME"` will do exactly that. There is
-nothing in the v0.1 binary that prevents it.
+The TTP's `exec` field runs via `bash -c` as the invoking user. There
+is no sandbox. v0.2 adds a **refuse-by-default safety gate**: every
+`run` must explicitly acknowledge what's being targeted.
 
-Practical implications:
-- **Do not run a TTP descriptor you didn't write or audit.** Read the
-  `exec` line of every TTP before you run it. The example TTPs shipped
-  in `ttps/examples/` are both intentionally read-only (`ip neigh show`,
-  `uname -a; cat /etc/os-release`) and safe; nothing else is implicitly safe.
-- **Do not run this tool on production hosts.** It is meant for
-  isolated lab targets — air-gapped VMs, throwaway containers,
-  dedicated sentinel-lab infrastructure.
-- **Do not pipe random TTP descriptors from the internet into this**
+Two acknowledgement paths:
+
+1. **`--target <IP>`** — runs against a remote host. The IP must be in
+   the lab-targets whitelist file (default
+   `~/sentinel-lab/lab-targets.txt`, override with `--lab-targets
+   <path>`). The whitelist supports IPv4 CIDR notation and bare IPs;
+   blank lines and `#`-comments are ignored. The target IP is exposed
+   to the TTP as `$TARGET` so descriptors can write `ssh "$TARGET"
+   ...` patterns.
+
+2. **`--unsafe-local`** — explicitly runs against the local host. The
+   flag's name is the warning: this is the runner happily executing
+   `exec` as the invoking user with no rollback. Use only for
+   read-only smoke tests (the shipped examples T1018, T1082) or in
+   throwaway containers.
+
+Without one of those flags, `run` exits 3 with a refusal message.
+
+```sh
+$ sovereign-offense-harness run --ttp examples/t1082.json
+error: refused by safety gate.
+… (exits 3)
+
+$ sovereign-offense-harness run --unsafe-local --ttp examples/t1082.json
+[PASS] T1082: System Information Discovery
+  envelope: envelopes/T1082-…json
+  duration: 11ms exit=0
+```
+
+Whitelist file format:
+```
+# ~/sentinel-lab/lab-targets.txt
+# IPv4 CIDR or bare IPs; one per line; #-comments and blank lines OK.
+10.0.0.0/24
+192.168.99.42
+```
+
+Other safety guidance:
+- Read the `exec` line of every TTP before you run it. The shipped
+  examples are intentionally read-only enumeration; nothing else is
+  implicitly safe.
+- Do not run this against production. Period.
+- Do not pipe random TTP descriptors from the internet through this
   any more than you'd pipe a stranger's bash script into `sudo bash`.
 
-The v0.2 release plans a refuse-by-default whitelist gate ("only run if
-target IP is in `~/sentinel-lab/lab-targets.txt`"). Until v0.2 ships,
-you ARE the safety gate.
-
 If you need a battle-tested adversary-emulation tool right now, use
-Atomic Red Team or MITRE Caldera. They have years of community review.
-This is v0.1 of a single-author project.
+Atomic Red Team or MITRE Caldera. This is a single-author project at
+v0.2; the safety story is reasonable but the TTP library is two
+examples.
 
 ## Roadmap
 
