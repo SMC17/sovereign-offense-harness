@@ -25,8 +25,10 @@
 
 ## Style
 
-- **No third-party deps** in the user-facing tools. We're zero-deps for a
-  reason — supply-chain audit story, AGPL clarity, single-binary distribution.
+- **No third-party Zig dependencies** in this binary. The Zig stdlib
+  is the only build-time dep; runtime relies on `bash` + standard
+  utilities (this is acknowledged explicitly in the README Safety
+  section). Project-specific rule.
 - **Determinism first.** If your change makes output non-deterministic
   (timestamps, random IDs, map iteration order), call it out explicitly
   in the PR description and explain why it's necessary.
