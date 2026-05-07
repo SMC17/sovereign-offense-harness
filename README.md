@@ -1,30 +1,49 @@
 # sovereign-offense-harness
 
-> Adversary emulation runner. Single Zig binary. Reads MITRE-ATT&CK-shaped
-> TTP descriptors, executes them via `bash -c`, captures structured audit
-> envelopes (timing, exit, stdout/stderr, SHA-256 of each, host fingerprint).
-> AttackIQ minus the SaaS.
+> A small Zig CLI that runs a TTP descriptor (JSON, ATT&CK-shaped) via
+> `bash -c`, captures stdout/stderr + exit + duration + per-stream
+> SHA-256 + host fingerprint, and writes a structured JSON audit
+> envelope. Single binary. No third-party Zig deps.
+>
+> **Status: v0.1.0 — early; primitive, not a tool.** Two example TTPs
+> shipped. No safety gate (target whitelist) yet — see Safety section.
+> No Atomic Red Team library compatibility yet (planned). The Zig
+> binary is real; the surrounding "tool" claims most adversary-
+> emulation products make are not yet supported here.
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Zig 0.16](https://img.shields.io/badge/Zig-0.16-orange.svg)](https://ziglang.org/)
-[![v0.1.0](https://img.shields.io/badge/version-0.1.0-blue.svg)](STATUS.md)
 
 Part of the [Sovereign Stack](https://stax.dev/sovereign-stack). Companion
 to [`sentinel-sbom`](https://github.com/stax/sentinel-sbom) and
 [`sovereign-edge`](https://github.com/stax/sovereign-edge).
 
-## Why
+## Why this exists
 
-Adversary emulation tools (Atomic Red Team, MITRE Caldera, AttackIQ, SafeBreach,
-XBOW) are powerful but heavyweight, SaaS-shaped, or require a Python/Go
-runtime that itself becomes a supply-chain dependency. For purple-team
-flywheels — where the *output of red runs feeds blue's detection engineering* —
-you want something tight, scriptable, and auditable.
+The big-name adversary-emulation products — AttackIQ, SafeBreach, XBOW,
+MITRE Caldera, Red Canary's Atomic Red Team — solve different problems
+at very different scales than this project does.
 
-`sovereign-offense-harness` is one Zig binary that does the narrow thing well:
-read a JSON TTP descriptor, run it, write a structured envelope. No agent,
-no server, no cloud. The envelope is the artifact your blue team grades
-detection coverage against.
+- **Atomic Red Team** is a *library* of ~1,500+ atomic tests with a
+  PowerShell + cross-platform runner. If you want comprehensive
+  technique coverage, use Atomic Red Team. This project's v0.4 plans
+  to read ART's JSON schema directly, not replace it.
+- **MITRE Caldera** is a full agent-orchestration framework: server,
+  agents, adversary playbooks, planners. If you need multi-host
+  orchestration, use Caldera.
+- **AttackIQ / SafeBreach** are commercial platforms with proprietary
+  TTP libraries, ML scoring, and enterprise-grade UIs. If you have
+  budget and want SOC-grade reporting, use those.
+
+The narrow thing this project does that the others don't: emit a
+*deterministic-shape* JSON envelope per TTP run, in a single
+audit-friendly Zig binary, with no agent, server, or runtime
+dependencies beyond Zig at build-time and `bash` at runtime. That's
+useful when you're building a small, auditable purple-team flywheel and
+you want the runner itself to not be part of your supply-chain attack
+surface.
+
+It's a primitive, not a platform.
 
 ## Demo
 
@@ -70,46 +89,57 @@ $ jq < envelopes/T1082-1778111282.json
 }
 ```
 
-## Comparison
+## Honest comparison
 
-| | sovereign-offense-harness | Atomic Red Team | MITRE Caldera | AttackIQ | SafeBreach |
-|---|---|---|---|---|---|
-| Single binary | ✅ Zig | ❌ PowerShell + bash + ... | ❌ Python + Go + UI | ❌ SaaS | ❌ SaaS |
-| No runtime / agent | ✅ | ⚠️ shell runtime | ❌ agent + server | ❌ agent | ❌ agent |
-| Open source | ✅ AGPL | ✅ MIT | ✅ Apache | ❌ commercial | ❌ commercial |
-| Structured audit envelope | ✅ JSON v1 | ⚠️ ad-hoc | ✅ ops/operations | ✅ proprietary | ✅ proprietary |
-| Deterministic envelope shape | ✅ | ❌ | ⚠️ | ⚠️ | ⚠️ |
-| TTP library size | 2 (v0.1) → ATT&CK in v0.4 | ~1500 | ~600 | proprietary | proprietary |
-| Sovereign-lab integration | ✅ v0.2 (target whitelist) | ❌ | ⚠️ | ❌ | ❌ |
-| Local-LLM TTP planner | ✅ v0.3 (planned) | ❌ | ❌ | ⚠️ | ❌ |
+| | sovereign-offense-harness | Atomic Red Team | MITRE Caldera | AttackIQ |
+|---|---|---|---|---|
+| What it is today | small TTP runner + envelope writer | TTP library + cross-platform runner | full agent-orchestration framework | enterprise platform |
+| TTP library size | 2 example TTPs | ~1,500+ atomics | ~600 abilities | proprietary, not public |
+| Runtime form | single Zig binary | PowerShell + cross-platform runner; the library itself is YAML/JSON | server + agents + UI | hosted SaaS + agents |
+| Multi-host orchestration | none | manual (run on each host) | yes (built-in agent framework) | yes |
+| Bring your own TTPs | yes (JSON descriptor) | yes (their schema) | yes (abilities) | mostly proprietary library |
+| Detection / blue-team integration | envelope JSON consumed by your own pipeline | none built-in | reporting + tagging | enterprise-grade reporting |
+| Open source | AGPL | MIT | Apache 2.0 | proprietary |
+| Maturity | v0.1, 1 author, ~3 days of work | mature, large community | mature, MITRE-backed | mature commercial |
+| Single-binary supply chain | yes (Zig binary, no third-party runtime) | no (PowerShell or runner toolchain required) | no (Python + Go + UI) | n/a (cloud) |
 
-**Where this excels:** small-footprint purple-team flywheels. You want to
-run TTPs against an isolated sentinel-lab, capture structured evidence, feed
-gaps into Sigma rules / Velociraptor artifacts, and you want zero runtime
-dependencies you didn't compile yourself.
+**Where this fits today**: a small team that wants to run a handful of
+TTPs in an isolated lab and capture audit-friendly JSON envelopes for
+blue-team grading. Mostly a building block, not a finished product.
 
-**Where it doesn't compete (today):** comprehensive attack libraries,
-multi-host orchestration, GUI-driven scenario builders. v0.4 will read
-upstream Atomic Red Team JSON directly to absorb their library. Multi-host
-is roadmap.
+**Where it doesn't fit**: anything requiring breadth of TTP coverage,
+multi-host orchestration, agent frameworks, or commercial reporting —
+use Atomic Red Team, Caldera, or a commercial platform respectively.
 
-## Status
+## Status — what's verified vs not
 
-`v0.1.0` — `compiled` + `unit-tested`.
+`v0.1.0` — single author, ~1 day of work. ~500 LOC Zig.
 
-| Property | Status |
-|---|---|
-| `zig build` green | ✅ |
-| `zig build test` green | ✅ (2 tests) |
-| Reads TTP JSON descriptor | ✅ |
-| Executes via bash, captures stdout/stderr | ✅ |
-| Emits structured JSON envelope | ✅ |
-| Verdict evaluation (PASS/FAIL) | ✅ |
-| Target whitelist enforcement | ⏳ v0.2 |
-| Atomic Red Team JSON compatibility | ⏳ v0.4 |
-| Local-LLM planner | ⏳ v0.3 |
+What works:
+- `zig build` + `zig build test` green; 2 unit tests (TTP parser + missing-id rejection).
+- Reads JSON TTP descriptor, executes via `bash -c`, captures
+  stdout/stderr/exit/duration, hashes each stream with SHA-256, writes
+  a JSON envelope to disk.
+- Two example TTPs ship, both intentionally read-only enumeration
+  (T1018 `ip neigh show`, T1082 `uname -a`).
 
-Detailed roadmap in [STATUS.md](STATUS.md).
+What does NOT work yet:
+- **No safety gate** — see Safety section. Any TTP descriptor's `exec`
+  field runs as the invoking user with no review. v0.2 plan adds a
+  target-IP whitelist refuse-by-default.
+- **No envelope schema validator** — the schema URI in the envelope is
+  whatever the writer puts in it. There is no schema enforcement and no
+  consumer-side validator beyond "is this valid JSON."
+- **No Atomic Red Team compatibility** — v0.4 plan. Today the descriptor
+  format is custom (close to but not identical to ART JSON).
+- **No multi-host orchestration** — explicitly out of scope.
+- **No detection-engineering output** — Sigma rule emission and
+  Velociraptor artifact stubs are v0.4 plans.
+- **No "local-LLM TTP planner"** — that's v0.3 vaporware right now;
+  no design, no integration, no working code.
+
+Roadmap in [STATUS.md](STATUS.md). Treat the version numbers as planning
+labels, not promises.
 
 ## Install
 
@@ -132,15 +162,31 @@ sovereign-offense-harness run --ttp ttps/examples/t1082-system-information-disco
 sovereign-offense-harness run --ttp my-ttp.json --out /var/lib/sentinel-lab/envelopes
 ```
 
-## ⚠️ Safety
+## ⚠️ Safety — read this before running anything
 
-**v0.1 has no built-in target safety.** A TTP descriptor's `exec` field
-runs as the invoking user. Don't run TTPs whose `exec` field you haven't
-read. Don't run this tool against production hosts. v0.2 adds the
-sentinel-lab whitelist gate (refuse-by-default unless target IP ∈ lab CIDR).
+**v0.1 will execute any string in a TTP's `exec` field as the invoking
+user, with no allowlist, no sandbox, no target check.** A malicious TTP
+descriptor with `"exec": "rm -rf $HOME"` will do exactly that. There is
+nothing in the v0.1 binary that prevents it.
 
-The v0.1 example TTPs (T1018, T1082) are both **read-only enumeration** —
-they won't change system state. Safe to run for smoke tests.
+Practical implications:
+- **Do not run a TTP descriptor you didn't write or audit.** Read the
+  `exec` line of every TTP before you run it. The example TTPs shipped
+  in `ttps/examples/` are both intentionally read-only (`ip neigh show`,
+  `uname -a; cat /etc/os-release`) and safe; nothing else is implicitly safe.
+- **Do not run this tool on production hosts.** It is meant for
+  isolated lab targets — air-gapped VMs, throwaway containers,
+  dedicated sentinel-lab infrastructure.
+- **Do not pipe random TTP descriptors from the internet into this**
+  any more than you'd pipe a stranger's bash script into `sudo bash`.
+
+The v0.2 release plans a refuse-by-default whitelist gate ("only run if
+target IP is in `~/sentinel-lab/lab-targets.txt`"). Until v0.2 ships,
+you ARE the safety gate.
+
+If you need a battle-tested adversary-emulation tool right now, use
+Atomic Red Team or MITRE Caldera. They have years of community review.
+This is v0.1 of a single-author project.
 
 ## Roadmap
 
