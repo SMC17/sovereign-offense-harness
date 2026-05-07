@@ -5,10 +5,11 @@
 > SHA-256 + host fingerprint, and writes a structured JSON audit
 > envelope. Single binary. No third-party Zig deps.
 >
-> **Status: v0.2.0 — early.** Two example TTPs shipped. **v0.2 added
-> the safety gate**: refuse-by-default unless either `--target <IP>`
-> matches a whitelist OR `--unsafe-local` is passed. No ART JSON
-> library compat yet (v0.3 plan).
+> **Status: v0.2.0 — early.** ~622 LOC. Two example TTPs shipped. **v0.2
+> added the safety gate**: refuse-by-default unless either `--target <IP>`
+> matches a whitelist OR `--unsafe-local` is passed. No Atomic Red Team
+> JSON-format compat yet — that's the v0.3 plan (drop-in their ~1500
+> TTPs).
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Zig 0.16](https://img.shields.io/badge/Zig-0.16-orange.svg)](https://ziglang.org/)
@@ -99,7 +100,7 @@ $ jq < envelopes/T1082-1778111282.json
 | Bring your own TTPs | yes (JSON descriptor) | yes (their schema) | yes (abilities) | mostly proprietary library |
 | Detection / blue-team integration | envelope JSON consumed by your own pipeline | none built-in | reporting + tagging | enterprise-grade reporting |
 | Open source | AGPL | MIT | Apache 2.0 | proprietary |
-| Maturity | v0.1, 1 author, ~3 days of work | mature, large community | mature, MITRE-backed | mature commercial |
+| Maturity | v0.2, 1 author, ~3 days of work | mature, large community | mature, MITRE-backed | mature commercial |
 | Single-binary supply chain | yes (Zig binary, no third-party runtime) | no (PowerShell or runner toolchain required) | no (Python + Go + UI) | n/a (cloud) |
 
 **Where this fits today**: a small team that wants to run a handful of
@@ -112,7 +113,7 @@ use Atomic Red Team, Caldera, or a commercial platform respectively.
 
 ## Status — what's verified vs not
 
-`v0.1.0` — single author, ~1 day of work. ~500 LOC Zig.
+`v0.2.0` — single author, ~3 days of work. ~622 LOC Zig.
 
 What works:
 - `zig build` + `zig build test` green; 2 unit tests (TTP parser + missing-id rejection).
@@ -121,14 +122,18 @@ What works:
   a JSON envelope to disk.
 - Two example TTPs ship, both intentionally read-only enumeration
   (T1018 `ip neigh show`, T1082 `uname -a`).
+- **v0.2 safety gate**: `run` refuses unless `--target <IP>` matches a
+  whitelist CIDR/IP in `~/sentinel-lab/lab-targets.txt` OR
+  `--unsafe-local` is passed. Whitelist supports IPv4 CIDR + bare IPs,
+  blank lines and `#`-comments. Refusal exits 3 with a refusal message.
 
 What does NOT work yet:
 - **No envelope schema validator** — the schema URI in the envelope is
   whatever the writer puts in it. There is no schema enforcement and no
   consumer-side validator beyond "is this valid JSON."
 - **No Atomic Red Team compatibility** — v0.3 plan (read ART JSON
-  format directly). Today the descriptor format is custom (close to but
-  not identical to ART).
+  format directly, ~1500 TTPs). Today the descriptor format is custom
+  (close to but not identical to ART).
 - **No multi-host orchestration** — explicitly out of scope.
 - **No detection-engineering output** — Sigma rule emission and
   Velociraptor artifact stubs are v0.4 plans.
@@ -218,14 +223,17 @@ examples.
 
 ## Roadmap
 
-- **v0.2** — sentinel-lab integration: target whitelist (refuse-by-default
-  unless lab IP), batch mode, `--detect-only`.
-- **v0.3** — Local-LLM TTP planner: shells to Ollama / vLLM, picks TTPs
-  for a target inventory, emits a replayable plan envelope.
-- **v0.4** — Atomic Red Team JSON-format compatibility (drop-in their
-  ~1500 TTPs), Sigma rule + Velociraptor artifact emission from gaps.
-- **v1.0** — public OSS launch with full ATT&CK coverage, CI matrix,
-  defense-procurement-shaped reference deployment.
+- **v0.2** ✅ shipped — sentinel-lab integration: target whitelist
+  (refuse-by-default unless lab IP), `--unsafe-local` ack flag,
+  exit 3 on refusal.
+- **v0.3** — Atomic Red Team JSON-format compatibility (drop-in their
+  ~1500 TTPs), batch mode, `--detect-only`.
+- **v0.4** — Sigma rule + Velociraptor artifact emission from gaps;
+  envelope schema validator and consumer-side checker.
+- **v0.5+** — Local-LLM TTP planner (shells to Ollama / vLLM, picks
+  TTPs for a target inventory, emits a replayable plan envelope).
+- **v1.0** — full ATT&CK coverage, CI matrix, defense-procurement-shaped
+  reference deployment.
 
 ## Why we built it
 
