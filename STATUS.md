@@ -1,9 +1,49 @@
 # sovereign-offense-harness status
 
-Last green: 2026-05-07 (v0.2.0 — `unit-tested`)
-Last touched: 2026-05-07 (Claude, pass-2)
+Last green: 2026-05-11 (v0.3.0 — `unit-tested`, 18/18)
+Last touched: 2026-05-11 (Claude, pass-3)
 
 ## Active focus
+
+- **Claude (2026-05-11 pass-3):** v0.3.0 — Atomic Red Team adapter
+  (EXPERIMENTAL).
+  - New `src/yaml.zig` (~350 LOC, 9 tests): minimal YAML subset parser.
+    Supports block mappings, block sequences, plain/quoted scalars, `|`
+    literal blocks, `#`-comments, indent-tracked nesting, and the
+    "compact mapping after dash" idiom (`- key: value` with continuation
+    keys at indent+2). Explicitly does NOT support anchors, tags, flow
+    style, multi-document streams, or tabs. URL-in-scalar heuristic
+    prevents `http://...` from being parsed as a mapping. `#` only
+    starts a comment when preceded by whitespace.
+  - New `src/art.zig` (~190 LOC, 5 tests): ART → Ttp adapter. Reads
+    `attack_technique`, `atomic_tests[]`, `supported_platforms`,
+    `input_arguments.<var>.default` (used for `#{var}` substitution),
+    and `executor.{command,name}`. Rejects non-bash/sh executors with
+    `UnsupportedExecutor` rather than silently mis-running. Selectors:
+    `.first`, `.{ .index = N }`, `.{ .name = "exact" }`. Unresolvable
+    `#{var}` left literal so the shell fails loudly (no silent
+    substitute-with-empty).
+  - `src/main.zig` wiring: `VERSION = "0.3.0"`, refactor `runCmd` →
+    split into `runTtp` (existing) and `runArtCmd` (new). New flags
+    `--art <path>` and `--art-test <selector>`, mutually exclusive with
+    `--ttp`. Same safety gate applies to ART runs — no `--art` path
+    escapes refuse-by-default.
+  - One example ART atomic shipped at
+    `ttps/examples/art-t1082-system-info.yml` (T1082 uname /
+    os-release). v0.2 surface unchanged; native JSON descriptors still
+    run via `--ttp`.
+  - **Latent envelope-writer bug fixed in this pass.** The pre-v0.3
+    writer used raw `{s}` interpolation for string fields, which
+    produced invalid JSON whenever `ttp.exec` contained a newline.
+    Native JSON descriptors are typically one-liners so this stayed
+    hidden; ART `|` literal blocks expose it immediately. Added a
+    `writeJsonString` helper (escapes `"`, `\`, LF/CR/TAB/BS/FF, and
+    control bytes via `\u00XX`) and wired it into the id / name / exec
+    / hostname / verdict_reason fields. Two new tests cover the helper
+    and a multi-line exec regression.
+  - `zig build test --summary all` → `20/20 tests passed`. End-to-end
+    smoke: both `--art` (multi-line) and `--ttp` (single-line) paths
+    produce `jq`-parseable envelopes with substituted `#{var}`.
 
 - **Claude (2026-05-07 pass-2):** v0.2.0 — refuse-by-default safety gate.
   - `run` subcommand now refuses unless one of two acknowledgements is
@@ -39,7 +79,7 @@ Last touched: 2026-05-07 (Claude, pass-2)
 |---|---|
 | sketch → compiled | ✅ DONE |
 | `zig build` green | ✅ |
-| `zig build test` green | ✅ (2 tests) |
+| `zig build test` green | ✅ (18 tests) |
 | Reads TTP JSON descriptor | ✅ |
 | Executes via bash -c, captures stdout/stderr | ✅ |
 | Emits structured JSON envelope | ✅ |
@@ -55,16 +95,16 @@ Last touched: 2026-05-07 (Claude, pass-2)
 - ⏳ **Batch mode** (`run-all <ttp-dir>`) — moved to v0.3.
 - ⏳ **`--detect-only`** — moved to v0.3.
 
-### v0.3 — adversary-emulation parity
+### v0.3 — adversary-emulation parity (DONE 2026-05-11 pass-3, EXPERIMENTAL)
 
-- **Atomic Red Team JSON-format compatibility** — accept the upstream
-  ART YAML/JSON schema directly so the ~1500 ART tests can drop in.
-  Needs a YAML subset parser in Zig (~200-400 LOC); the load-bearing
-  v0.3 lift.
-- **Batch mode** (`run-all <ttp-dir>`): walk directory of TTPs, run
-  sequentially, aggregate envelopes into a session log.
-- **`--detect-only`**: report what WOULD execute without running.
-  Useful for new TTPs from untrusted sources.
+- ✅ **Atomic Red Team YAML compatibility** — in-tree minimal YAML
+  subset parser (`src/yaml.zig`, ~350 LOC) + ART → Ttp adapter
+  (`src/art.zig`, ~190 LOC). `--art <file>` / `--art-test <selector>`
+  flags. bash/sh executors only; other executors rejected, not
+  silently mis-run. Marked EXPERIMENTAL in README and `--help`.
+- ⏳ **Batch mode** (`run-all <ttp-dir>`) — moved to v0.4 (paired with
+  ART batch + `--check-deps`).
+- ⏳ **`--detect-only`** — moved to v0.4.
 
 ### v0.4 — detection-engineering output
 

@@ -1,0 +1,23 @@
+attack_technique: T1082
+display_name: System Information Discovery (ART-shaped)
+atomic_tests:
+- name: System Information Discovery — Linux uname / os-release
+  description: |
+    Read uname and /etc/os-release to fingerprint the host. Mirrors the
+    canonical Atomic Red Team T1082 atomic, in the YAML schema upstream
+    publishes. Adapted by `--art` into the same Ttp shape the harness
+    already runs, so the safety gate (refuse-by-default + --unsafe-local)
+    applies unchanged.
+  supported_platforms:
+  - linux
+  input_arguments:
+    output_file:
+      description: where to tee the captured fingerprint
+      type: Path
+      default: /tmp/sovereign-offense-art-t1082.out
+  executor:
+    command: |
+      uname -a | tee #{output_file}
+      cat /etc/os-release 2>/dev/null || true
+    name: bash
+    elevation_required: false

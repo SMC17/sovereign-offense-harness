@@ -1,63 +1,58 @@
-//! sovereign-offense-harness v0.2.0
+//! sovereign-offense-harness v0.3.0
 //!
 //! Adversary emulation runner that executes canned TTP (Tactic /
 //! Technique / Procedure) descriptors and captures structured audit
 //! envelopes. Built for sentinel-lab's purple-team flywheel.
 //!
-//! v0.2 adds the safety gate: refuse-by-default unless the operator
+//! v0.3 adds **experimental** Atomic Red Team YAML adapter (`--art`).
+//! The native JSON descriptor format remains the primary surface; ART
+//! adapter is a convenience layer over a minimal YAML subset parser.
+//!
+//! v0.2 added the safety gate: refuse-by-default unless the operator
 //! explicitly acknowledges either local execution (--unsafe-local) or
 //! provides a target IP that matches a configured whitelist.
-//!
-//! v0.1 scope (per ~/COMPETITIVE_LANDSCAPE.md S1 acceptance gate):
-//!   sketch → compiled. Passes when:
-//!   - `zig build` produces a working binary.
-//!   - `sentinel-offense run --ttp ttps/examples/t1018.json` executes
-//!     and writes a JSON envelope to envelopes/.
-//!   - The envelope contains: ttp metadata, exec command, exit code,
-//!     stdout/stderr (full text + sha256), host fingerprint, timestamps.
-//!
-//! v0.2 scope (deferred):
-//!   - Local-LLM-driven TTP selection ("which TTPs should I run against
-//!     this target?") via local Ollama / vLLM endpoint.
-//!   - Sigma rule + Velociraptor artifact emission from observed gaps.
-//!   - sentinel-lab integration: read lab inventory, target whitelist,
-//!     refuse to execute outside the lab IP range.
 //!
 //! License: AGPL-3.0-or-later. Aligns with the rest of the Sovereign
 //! Stack (per `LICENSING_STRATEGY.md` and project memory
 //! `feedback_ship_first_redhat_defense.md`).
 
 const std = @import("std");
+const yaml = @import("yaml.zig");
+const art = @import("art.zig");
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 const ENVELOPE_SCHEMA = "sovereign-offense-harness/envelope/v1";
 
 const usage =
     \\sovereign-offense-harness — adversary emulation runner.
     \\
     \\Usage:
-    \\  sovereign-offense-harness run --ttp <ttp.json> [opts]
+    \\  sovereign-offense-harness run (--ttp <ttp.json> | --art <atomic.yml>) [opts]
     \\  sovereign-offense-harness validate <ttp.json>
     \\  sovereign-offense-harness --version | -V
     \\  sovereign-offense-harness --help    | -h
     \\
     \\`run` options:
-    \\  --ttp <path>           TTP descriptor (required)
+    \\  --ttp <path>           native JSON TTP descriptor
+    \\  --art <path>           Atomic Red Team YAML atomic (EXPERIMENTAL,
+    \\                         v0.3 — bash/sh executors only; minimal YAML
+    \\                         subset parser; #{var} default substitution)
+    \\  --art-test <name|N>    pick atomic test by name or 0-based index
+    \\                         (default: first test in the file)
     \\  --out <dir>            envelope output dir (default: envelopes/)
     \\  --target <IP>          target IP for the TTP (passed as $TARGET to exec).
     \\                         Refused unless IP is in --lab-targets whitelist.
     \\  --unsafe-local         execute against the local host. ACK that you
     \\                         understand `exec` runs as you with no sandbox.
     \\  --lab-targets <path>   whitelist file: one CIDR or IP per line.
-    \\                         Default: $SENTINEL_LAB_TARGETS env var, then
-    \\                         ~/sentinel-lab/lab-targets.txt.
+    \\                         Default: ~/sentinel-lab/lab-targets.txt.
     \\
-    \\Safety gate (v0.2): refuse-by-default. Run requires either
+    \\Safety gate (v0.2+): refuse-by-default. Run requires either
     \\--unsafe-local or --target <IP-in-whitelist>. The whitelist file
     \\must exist and contain the target. CIDR matching supported (v4 only
     \\in v0.2; v6 deferred).
     \\
-    \\TTP descriptor format (JSON):
+    \\TTP descriptor format (JSON, native):
     \\  {
     \\    "id": "T1018",
     \\    "name": "Remote System Discovery",
@@ -70,6 +65,13 @@ const usage =
     \\      "stdout_excludes": []
     \\    }
     \\  }
+    \\
+    \\ART adapter (v0.3 EXPERIMENTAL): only `bash` / `sh` executors are
+    \\run as-is. Other executors (powershell, command_prompt) are
+    \\rejected — the adapter refuses to silently mis-run them. ART
+    \\`expected_*` fields are not honored (ART has no equivalent today).
+    \\Dependencies and cleanup_command are ignored. v0.4 plans a
+    \\`--check-deps` mode.
     \\
     \\Exit codes:
     \\  0 — success (TTP ran AND matched all expectations)
@@ -110,6 +112,8 @@ pub fn main(init: std.process.Init) !void {
 
     if (std.mem.eql(u8, cmd, "run")) {
         var ttp_path: ?[]const u8 = null;
+        var art_path: ?[]const u8 = null;
+        var art_test: ?[]const u8 = null;
         var out_dir: []const u8 = "envelopes";
         var target: ?[]const u8 = null;
         var unsafe_local: bool = false;
@@ -117,6 +121,10 @@ pub fn main(init: std.process.Init) !void {
         while (iter.next()) |a| {
             if (std.mem.eql(u8, a, "--ttp")) {
                 ttp_path = iter.next() orelse return fail("--ttp requires a path");
+            } else if (std.mem.eql(u8, a, "--art")) {
+                art_path = iter.next() orelse return fail("--art requires a path");
+            } else if (std.mem.eql(u8, a, "--art-test")) {
+                art_test = iter.next() orelse return fail("--art-test requires a name or index");
             } else if (std.mem.eql(u8, a, "--out")) {
                 out_dir = iter.next() orelse return fail("--out requires a path");
             } else if (std.mem.eql(u8, a, "--target")) {
@@ -129,7 +137,15 @@ pub fn main(init: std.process.Init) !void {
                 return fail("unexpected arg in `run`");
             }
         }
-        const path = ttp_path orelse return fail("run requires --ttp <path>");
+        if (ttp_path != null and art_path != null) {
+            return fail("--ttp and --art are mutually exclusive");
+        }
+        if (ttp_path == null and art_path == null) {
+            return fail("run requires either --ttp <path> or --art <path>");
+        }
+        if (art_test != null and art_path == null) {
+            return fail("--art-test requires --art");
+        }
 
         // ─── Safety gate ──────────────────────────────────────────
         // Refuse-by-default. Operator must either:
@@ -186,7 +202,11 @@ pub fn main(init: std.process.Init) !void {
             }
         }
 
-        return runCmd(gpa, arena, io, path, out_dir, target, unsafe_local);
+        if (ttp_path) |path| {
+            return runCmd(gpa, arena, io, path, out_dir, target, unsafe_local);
+        }
+        // --art path: read YAML, adapt, run.
+        return runArtCmd(gpa, arena, io, art_path.?, art_test, out_dir, target, unsafe_local);
     }
 
     return fail("unknown subcommand");
@@ -389,7 +409,73 @@ fn runCmd(
         std.Io.Limit.limited(1 * 1024 * 1024),
     );
     const ttp = try parseTtp(arena, json_bytes);
+    return runTtp(gpa, arena, io, ttp, out_dir, target, unsafe_local);
+}
 
+/// Read an ART atomic YAML, adapt the selected test to the internal TTP
+/// shape, and run it through the same execution path as a JSON descriptor.
+/// `selector_str` is null (= first test), an integer (0-based index), or
+/// the exact `name` of an atomic_test.
+fn runArtCmd(
+    gpa: std.mem.Allocator,
+    arena: std.mem.Allocator,
+    io: std.Io,
+    art_path: []const u8,
+    selector_str: ?[]const u8,
+    out_dir: []const u8,
+    target: ?[]const u8,
+    unsafe_local: bool,
+) !void {
+    const yaml_bytes = try std.Io.Dir.cwd().readFileAlloc(
+        io,
+        art_path,
+        arena,
+        std.Io.Limit.limited(4 * 1024 * 1024),
+    );
+    const root = try yaml.parse(arena, yaml_bytes);
+
+    const selector: art.Selector = if (selector_str) |s| blk: {
+        if (std.fmt.parseInt(usize, s, 10)) |i| {
+            break :blk .{ .index = i };
+        } else |_| {
+            break :blk .{ .name = s };
+        }
+    } else .first;
+
+    const adapted = art.adapt(arena, root, selector) catch |err| switch (err) {
+        error.NotAnArtAtomic => return fail("--art file is not a recognizable ART atomic"),
+        error.NoAtomicTests => return fail("--art file contains no atomic_tests"),
+        error.AtomicTestNotFound => return fail("--art-test selector did not match any test"),
+        error.UnsupportedExecutor => return fail("--art file's executor is not bash/sh (powershell/command_prompt rejected by design)"),
+        else => return err,
+    };
+
+    const ttp = Ttp{
+        .id = adapted.id,
+        .name = adapted.name,
+        .description = adapted.description,
+        .platforms = adapted.platforms,
+        .exec = adapted.exec,
+        // ART has no equivalent of `expected` — leave unconstrained.
+        // Verdict will be PASS as long as the command exits without
+        // signaling. If a stronger check is wanted, write a native JSON
+        // descriptor that wraps the same exec line with expectations.
+        .expected_exit_code = null,
+        .expected_stdout_contains = null,
+        .expected_stdout_excludes = &.{},
+    };
+    return runTtp(gpa, arena, io, ttp, out_dir, target, unsafe_local);
+}
+
+fn runTtp(
+    gpa: std.mem.Allocator,
+    arena: std.mem.Allocator,
+    io: std.Io,
+    ttp: Ttp,
+    out_dir: []const u8,
+    target: ?[]const u8,
+    unsafe_local: bool,
+) !void {
     // Capture wall-clock timestamp + monotonic start. std.time.timestamp
     // and std.time.Timer were both removed in Zig 0.16; use clock_gettime
     // syscalls directly. Linux-only; a future cross-platform version can
@@ -471,9 +557,15 @@ fn runCmd(
     try env.appendSlice(arena, "{\n");
     try env.print(arena, "  \"schema\": \"{s}\",\n", .{ENVELOPE_SCHEMA});
     try env.appendSlice(arena, "  \"ttp\": {\n");
-    try env.print(arena, "    \"id\": \"{s}\",\n", .{ttp.id});
-    try env.print(arena, "    \"name\": \"{s}\",\n", .{ttp.name});
-    try env.print(arena, "    \"exec\": \"{s}\"\n", .{ttp.exec});
+    try env.appendSlice(arena, "    \"id\": \"");
+    try writeJsonString(&env, arena, ttp.id);
+    try env.appendSlice(arena, "\",\n");
+    try env.appendSlice(arena, "    \"name\": \"");
+    try writeJsonString(&env, arena, ttp.name);
+    try env.appendSlice(arena, "\",\n");
+    try env.appendSlice(arena, "    \"exec\": \"");
+    try writeJsonString(&env, arena, ttp.exec);
+    try env.appendSlice(arena, "\"\n");
     try env.appendSlice(arena, "  },\n");
     try env.appendSlice(arena, "  \"execution\": {\n");
     try env.print(arena, "    \"started_at_unix\": {d},\n", .{t_start});
@@ -488,12 +580,16 @@ fn runCmd(
     try writeHex(&env, arena, &stderr_sha);
     try env.appendSlice(arena, "\"\n");
     try env.appendSlice(arena, "  },\n");
-    try env.print(arena, "  \"host\": {{ \"hostname\": \"{s}\" }},\n", .{hostname});
+    try env.appendSlice(arena, "  \"host\": { \"hostname\": \"");
+    try writeJsonString(&env, arena, hostname);
+    try env.appendSlice(arena, "\" },\n");
     try env.appendSlice(arena, "  \"verdict\": ");
     if (passed) {
         try env.appendSlice(arena, "\"PASS\"");
     } else {
-        try env.print(arena, "\"FAIL\",\n  \"verdict_reason\": \"{s}\"", .{fail_reason});
+        try env.appendSlice(arena, "\"FAIL\",\n  \"verdict_reason\": \"");
+        try writeJsonString(&env, arena, fail_reason);
+        try env.appendSlice(arena, "\"");
     }
     try env.appendSlice(arena, "\n}\n");
 
@@ -550,6 +646,34 @@ fn writeHex(out: *std.ArrayList(u8), allocator: std.mem.Allocator, bytes: []cons
     }
 }
 
+/// Append `s` to `out` as the contents of a JSON string (no surrounding
+/// quotes). Escapes `"`, `\`, control bytes < 0x20, and DEL (0x7f). Other
+/// bytes (including valid UTF-8 continuation bytes) pass through. This
+/// is the minimum-correct subset of RFC 8259 §7 — enough that `jq` and
+/// strict consumers accept the envelope. Previously the writer used
+/// `{s}` interpolation directly, which produced invalid JSON whenever
+/// `ttp.exec` contained a newline — surfaced by v0.3 ART `|` literal
+/// blocks.
+fn writeJsonString(out: *std.ArrayList(u8), allocator: std.mem.Allocator, s: []const u8) !void {
+    for (s) |b| {
+        switch (b) {
+            '"' => try out.appendSlice(allocator, "\\\""),
+            '\\' => try out.appendSlice(allocator, "\\\\"),
+            '\n' => try out.appendSlice(allocator, "\\n"),
+            '\r' => try out.appendSlice(allocator, "\\r"),
+            '\t' => try out.appendSlice(allocator, "\\t"),
+            0x08 => try out.appendSlice(allocator, "\\b"),
+            0x0c => try out.appendSlice(allocator, "\\f"),
+            0x00...0x07, 0x0b, 0x0e...0x1f, 0x7f => {
+                var buf: [6]u8 = undefined;
+                const written = std.fmt.bufPrint(&buf, "\\u{x:0>4}", .{b}) catch unreachable;
+                try out.appendSlice(allocator, written);
+            },
+            else => try out.append(allocator, b),
+        }
+    }
+}
+
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 test "parseTtp on minimal valid descriptor" {
@@ -587,4 +711,76 @@ test "parseTtp rejects missing id" {
         \\{ "name": "no-id", "exec": "true" }
     ;
     try std.testing.expectError(error.TtpMissingId, parseTtp(a, fixture));
+}
+
+test "writeJsonString escapes control bytes and structural chars" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var out: std.ArrayList(u8) = .empty;
+    try writeJsonString(&out, a, "line1\nline2\t\"q\"\\ok\x01");
+    try std.testing.expectEqualStrings("line1\\nline2\\t\\\"q\\\"\\\\ok\\u0001", out.items);
+}
+
+test "envelope writer produces parseable JSON for multi-line exec" {
+    // Regression: ART `|` literal blocks yield multi-line execs. Before
+    // the writeJsonString fix, the raw `{s}` interpolation embedded a
+    // literal LF inside the JSON string value, producing invalid JSON.
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var out: std.ArrayList(u8) = .empty;
+    try out.appendSlice(a, "\"exec\":\"");
+    try writeJsonString(&out, a, "uname -a\ncat /etc/os-release");
+    try out.appendSlice(a, "\"");
+    // Must not contain a literal LF inside the value.
+    try std.testing.expect(std.mem.indexOfScalar(u8, out.items, '\n') == null);
+    try std.testing.expectEqualStrings(
+        "\"exec\":\"uname -a\\ncat /etc/os-release\"",
+        out.items,
+    );
+}
+
+test "art end-to-end: YAML → adapter → Ttp shape" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const src =
+        \\attack_technique: T1082
+        \\display_name: System Information Discovery
+        \\atomic_tests:
+        \\- name: T1082 — uname
+        \\  description: Read uname.
+        \\  supported_platforms:
+        \\  - linux
+        \\  executor:
+        \\    command: |
+        \\      uname -a
+        \\    name: bash
+    ;
+    const root = try yaml.parse(a, src);
+    const adapted = try art.adapt(a, root, .first);
+    const ttp = Ttp{
+        .id = adapted.id,
+        .name = adapted.name,
+        .description = adapted.description,
+        .platforms = adapted.platforms,
+        .exec = adapted.exec,
+        .expected_exit_code = null,
+        .expected_stdout_contains = null,
+        .expected_stdout_excludes = &.{},
+    };
+    try std.testing.expectEqualStrings("T1082", ttp.id);
+    try std.testing.expectEqualStrings("uname -a", ttp.exec);
+    try std.testing.expect(ttp.expected_exit_code == null);
+}
+
+// Pull yaml.zig + art.zig tests into the main test binary.
+comptime {
+    _ = yaml;
+    _ = art;
+}
+test {
+    _ = @import("yaml.zig");
+    _ = @import("art.zig");
 }
