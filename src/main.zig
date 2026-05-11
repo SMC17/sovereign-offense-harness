@@ -20,7 +20,7 @@ const std = @import("std");
 const yaml = @import("yaml.zig");
 const art = @import("art.zig");
 
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 const ENVELOPE_SCHEMA = "sovereign-offense-harness/envelope/v1";
 
 const usage =
@@ -227,6 +227,27 @@ fn expandTilde(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
     // Fallback: no HOME found — return as-is and let the file open fail
     // with a useful path string.
     return try allocator.dupe(u8, path);
+}
+
+/// Linux-only presence check: does `/proc/self/environ` contain a
+/// pair beginning with `prefix` (e.g. `SOH_QUIET=`)? Pass the trailing
+/// `=` to avoid prefix collisions like `SOH_QUIETLY=…`. No allocation;
+/// safe to call from hot paths.
+fn procEnvironHasKey(prefix: []const u8) bool {
+    const fd = std.os.linux.open("/proc/self/environ", .{ .ACCMODE = .RDONLY }, 0);
+    if (@as(isize, @bitCast(fd)) < 0) return false;
+    defer _ = std.os.linux.close(@intCast(fd));
+
+    var buf: [16 * 1024]u8 = undefined;
+    const n = std.os.linux.read(@intCast(fd), &buf, buf.len);
+    if (@as(isize, @bitCast(n)) <= 0) return false;
+    const data = buf[0..@intCast(n)];
+
+    var pairs = std.mem.splitScalar(u8, data, 0);
+    while (pairs.next()) |pair| {
+        if (std.mem.startsWith(u8, pair, prefix)) return true;
+    }
+    return false;
 }
 
 /// Linux-only: read /proc/self/environ (NUL-separated key=value pairs)
@@ -450,6 +471,23 @@ fn runArtCmd(
         else => return err,
     };
 
+    // P0-5 / P1-2: echo the selected atomic + the substituted exec to
+    // stderr before executing. ART YAMLs often carry multiple atomics
+    // with different risk profiles in one file, and #{var} default
+    // substitution can pull in upstream-supplied demo values. Make the
+    // operator see what's about to run.
+    const total_atomics: usize = blk: {
+        if (root.lookup("atomic_tests")) |seq| {
+            if (seq == .sequence) break :blk seq.sequence.len;
+        }
+        break :blk 0;
+    };
+    const selector_label: []const u8 = if (selector_str) |s| s else "first";
+    std.debug.print(
+        "art: selected '{s}' (selector: {s}; total atomics in file: {d})\nart: substituted exec:\n----\n{s}\n----\n",
+        .{ adapted.name, selector_label, total_atomics, adapted.exec },
+    );
+
     const ttp = Ttp{
         .id = adapted.id,
         .name = adapted.name,
@@ -494,7 +532,17 @@ fn runTtp(
     // invocation so the TTP's exec field can reference $TARGET. This
     // sidesteps Zig 0.16's reorganized environ-handling APIs while
     // giving descriptors the same UX as if we'd passed an env_map.
-    _ = unsafe_local; // currently informational; v0.3 may persist into envelope
+    //
+    // P0-4: --unsafe-local muscle memory is the operator-error hazard
+    // the gate's name doesn't actually catch. Print a loud line every
+    // single run so the flag never becomes invisible to a SOC analyst's
+    // muscle memory. Suppress under SOH_QUIET=1 for batch users.
+    if (unsafe_local and !procEnvironHasKey("SOH_QUIET=")) {
+        std.debug.print(
+            "warning: --unsafe-local set; TTP runs as the invoking user with no sandbox. No rollback. (suppress this line with SOH_QUIET=1)\n",
+            .{},
+        );
+    }
     const exec_with_env = if (target) |t|
         try std.fmt.allocPrint(arena, "TARGET={s} {s}", .{ t, ttp.exec })
     else

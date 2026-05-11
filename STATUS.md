@@ -1,9 +1,41 @@
 # sovereign-offense-harness status
 
-Last green: 2026-05-11 (v0.3.0 — `unit-tested`, 18/18)
-Last touched: 2026-05-11 (Claude, pass-3)
+Last green: 2026-05-11 (v0.3.1 — `unit-tested`, 20/20)
+Last touched: 2026-05-11 (Claude, pass-4)
 
 ## Active focus
+
+- **Claude (2026-05-11 pass-4):** v0.3.1 — publish-readiness polish
+  driven by WS 6 SECURITY_REVIEW.md.
+  - **Authorized-Use-Only notice** added at the top of README.md
+    (above the v0.3 status block). Explicit framing: AGPL doesn't
+    restrict use case; this tool relies entirely on
+    downstream-operator authorization; CFAA / CMA equivalents apply.
+  - **Safety section re-worded:** "refuse-by-default safety gate" →
+    "refuse-by-default operator-error gate" with explicit acknowledge
+    that the gate addresses accidents, not adversaries. Removes a
+    Type-1 overclaim that was sitting in the README since v0.2.
+  - **`--unsafe-local` now emits a stderr warning** on every run
+    ("warning: --unsafe-local set; TTP runs as the invoking user
+    with no sandbox. No rollback."). Suppress via `SOH_QUIET=1` for
+    batch users. Implemented via a no-allocation
+    `procEnvironHasKey` helper (Zig 0.16 reorganized `std.posix.getenv`
+    out, so this matches the existing `readHomeFromProcEnviron` pattern).
+  - **`--art` now echoes the selected atomic + the substituted exec
+    line to stderr** before running, unconditionally. ART files
+    routinely carry multiple atomics with different risk profiles;
+    `#{var}` defaults can be upstream-supplied demo values. The
+    operator now sees what's about to run, without needing a separate
+    dry-run flag.
+  - **`THREAT_MODEL.md` added** (~140 lines): who the tool is for,
+    who it is not for, what the gate does and doesn't do, what the
+    envelope is and isn't, trust assumptions, out-of-scope items,
+    what changes the model.
+  - **`SECURITY.md` extended** with three sections: do-not-embed-
+    credentials, hostname-disclosure note, AGPL-doesn't-restrict-use-
+    case note pointing at `THREAT_MODEL.md`.
+  - 20/20 tests still pass. v0.3.0 surface (`--ttp`, `--art`,
+    `--target`, `--unsafe-local`, `--art-test`) unchanged.
 
 - **Claude (2026-05-11 pass-3):** v0.3.0 — Atomic Red Team adapter
   (EXPERIMENTAL).
