@@ -5,11 +5,13 @@
 > SHA-256 + host fingerprint, and writes a structured JSON audit
 > envelope. Single binary. No third-party Zig deps.
 >
-> **Status: v0.2.0 — early.** ~622 LOC. Two example TTPs shipped. **v0.2
-> added the safety gate**: refuse-by-default unless either `--target <IP>`
-> matches a whitelist OR `--unsafe-local` is passed. No Atomic Red Team
-> JSON-format compat yet — that's the v0.3 plan (drop-in their ~1500
-> TTPs).
+> **Status: v0.3.0 — early.** ~1160 LOC. Two example TTPs + one ART
+> example shipped. v0.2 added the **safety gate** (refuse-by-default
+> unless `--target <IP>` matches a whitelist OR `--unsafe-local`).
+> **v0.3 adds an `--art` mode (EXPERIMENTAL):** a minimal in-tree YAML
+> parser + Atomic Red Team adapter that translates ART atomic-test
+> descriptors into the existing Ttp shape. Safety gate still applies. The
+> v0.2 surface (`run --ttp …`, `validate …`) is unchanged.
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Zig 0.16](https://img.shields.io/badge/Zig-0.16-orange.svg)](https://ziglang.org/)
@@ -26,8 +28,9 @@ at very different scales than this project does.
 
 - **Atomic Red Team** is a *library* of ~1,500+ atomic tests with a
   PowerShell + cross-platform runner. If you want comprehensive
-  technique coverage, use Atomic Red Team. This project's v0.4 plans
-  to read ART's JSON schema directly, not replace it.
+  technique coverage, use Atomic Red Team. v0.3 of this project reads
+  ART's YAML schema (experimental — bash/sh executors only) via the
+  `--art` flag; it does not replace ART's runner.
 - **MITRE Caldera** is a full agent-orchestration framework: server,
   agents, adversary playbooks, planners. If you need multi-host
   orchestration, use Caldera.
@@ -100,7 +103,7 @@ $ jq < envelopes/T1082-1778111282.json
 | Bring your own TTPs | yes (JSON descriptor) | yes (their schema) | yes (abilities) | mostly proprietary library |
 | Detection / blue-team integration | envelope JSON consumed by your own pipeline | none built-in | reporting + tagging | enterprise-grade reporting |
 | Open source | AGPL | MIT | Apache 2.0 | proprietary |
-| Maturity | v0.2, 1 author, ~3 days of work | mature, large community | mature, MITRE-backed | mature commercial |
+| Maturity | v0.3, 1 author, ~4 days of work | mature, large community | mature, MITRE-backed | mature commercial |
 | Single-binary supply chain | yes (Zig binary, no third-party runtime) | no (PowerShell or runner toolchain required) | no (Python + Go + UI) | n/a (cloud) |
 
 **Where this fits today**: a small team that wants to run a handful of
@@ -113,33 +116,49 @@ use Atomic Red Team, Caldera, or a commercial platform respectively.
 
 ## Status — what's verified vs not
 
-`v0.2.0` — single author, ~3 days of work. ~622 LOC Zig.
+`v0.3.0` — single author, ~4 days of work. ~1160 LOC Zig.
 
 What works:
-- `zig build` + `zig build test` green; 2 unit tests (TTP parser + missing-id rejection).
+- `zig build` + `zig build test` green; 18 unit tests (TTP parser,
+  missing-id rejection, YAML subset parser, ART adapter, plus an
+  end-to-end ART adapter test).
 - Reads JSON TTP descriptor, executes via `bash -c`, captures
   stdout/stderr/exit/duration, hashes each stream with SHA-256, writes
   a JSON envelope to disk.
-- Two example TTPs ship, both intentionally read-only enumeration
-  (T1018 `ip neigh show`, T1082 `uname -a`).
+- Two example TTPs ship in the native JSON shape, both intentionally
+  read-only enumeration (T1018 `ip neigh show`, T1082 `uname -a`).
+- One example ART atomic ships at `ttps/examples/art-t1082-system-info.yml`.
 - **v0.2 safety gate**: `run` refuses unless `--target <IP>` matches a
   whitelist CIDR/IP in `~/sentinel-lab/lab-targets.txt` OR
   `--unsafe-local` is passed. Whitelist supports IPv4 CIDR + bare IPs,
   blank lines and `#`-comments. Refusal exits 3 with a refusal message.
+  Applies to `--art` runs too — no path around it.
+- **v0.3 `--art` mode (EXPERIMENTAL)**: in-tree minimal YAML subset
+  parser (block mappings/sequences, plain/quoted scalars, `|` literal
+  blocks, `#`-comments, indent-tracked nesting — no anchors, tags, flow
+  style, multi-doc, or tabs) plus an ART → Ttp adapter. Supports
+  `attack_technique`, `atomic_tests[]`, `supported_platforms`,
+  `input_arguments.<var>.default` substitution into `#{var}`, and
+  `executor.{command,name}` for bash/sh only. Selectors: `--art-test
+  first` (default), `--art-test index:N`, `--art-test name:<exact>`.
 
 What does NOT work yet:
+- **`--art` is experimental and read-only of the YAML subset above.**
+  Anchors, tags, flow-style YAML, multi-document streams, and tabs are
+  rejected. PowerShell / `command_prompt` executors are rejected
+  (returns `UnsupportedExecutor`) rather than silently mis-run.
+  `cleanup_command`, `dependencies`, and `dependency_executor_name` are
+  ignored — an atomic that depends on prereqs will fail loudly at
+  shell time. v0.4 plans a `--check-deps` mode.
 - **No envelope schema validator** — the schema URI in the envelope is
   whatever the writer puts in it. There is no schema enforcement and no
   consumer-side validator beyond "is this valid JSON."
-- **No Atomic Red Team compatibility** — v0.3 plan (read ART JSON
-  format directly, ~1500 TTPs). Today the descriptor format is custom
-  (close to but not identical to ART).
 - **No multi-host orchestration** — explicitly out of scope.
 - **No detection-engineering output** — Sigma rule emission and
   Velociraptor artifact stubs are v0.4 plans.
-- **No "local-LLM TTP planner"** — that's v0.4+ vaporware right now;
+- **No "local-LLM TTP planner"** — that's v0.5+ vaporware right now;
   no design, no integration, no working code.
-- **IPv6 in the whitelist** — v0.2 supports IPv4 only.
+- **IPv6 in the whitelist** — v0.3 still IPv4 only.
 
 Roadmap in [STATUS.md](STATUS.md). Treat the version numbers as planning
 labels, not promises.
@@ -155,14 +174,26 @@ zig build              # produces ./zig-out/bin/sovereign-offense-harness
 ## Usage
 
 ```sh
-# Validate a TTP descriptor's structure
+# Validate a native TTP descriptor's structure
 sovereign-offense-harness validate ttps/examples/t1018-remote-system-discovery.json
 
-# Run a TTP — emits envelope to envelopes/<id>-<unix-ts>.json
-sovereign-offense-harness run --ttp ttps/examples/t1082-system-information-discovery.json
+# Run a native TTP — emits envelope to envelopes/<id>-<unix-ts>.json
+sovereign-offense-harness run --unsafe-local \
+  --ttp ttps/examples/t1082-system-information-discovery.json
 
 # Custom output directory
-sovereign-offense-harness run --ttp my-ttp.json --out /var/lib/sentinel-lab/envelopes
+sovereign-offense-harness run --unsafe-local \
+  --ttp my-ttp.json --out /var/lib/sentinel-lab/envelopes
+
+# v0.3 EXPERIMENTAL — run an Atomic Red Team atomic-test YAML.
+# Mutually exclusive with --ttp. Same safety gate applies.
+sovereign-offense-harness run --unsafe-local \
+  --art ttps/examples/art-t1082-system-info.yml
+
+# Select a specific atomic test inside the YAML (default is first):
+sovereign-offense-harness run --unsafe-local --art file.yml \
+  --art-test 'name:System Information Discovery — Linux uname / os-release'
+sovereign-offense-harness run --unsafe-local --art file.yml --art-test index:1
 ```
 
 ## ⚠️ Safety — read this before running anything
@@ -226,10 +257,13 @@ examples.
 - **v0.2** ✅ shipped — sentinel-lab integration: target whitelist
   (refuse-by-default unless lab IP), `--unsafe-local` ack flag,
   exit 3 on refusal.
-- **v0.3** — Atomic Red Team JSON-format compatibility (drop-in their
-  ~1500 TTPs), batch mode, `--detect-only`.
+- **v0.3** ✅ shipped (EXPERIMENTAL) — Atomic Red Team YAML adapter:
+  in-tree minimal YAML subset parser + ART → Ttp adapter, `--art` /
+  `--art-test` flags, bash/sh executors only. Batch mode and
+  `--detect-only` deferred to v0.4.
 - **v0.4** — Sigma rule + Velociraptor artifact emission from gaps;
-  envelope schema validator and consumer-side checker.
+  envelope schema validator and consumer-side checker; ART batch mode
+  + `--check-deps`.
 - **v0.5+** — Local-LLM TTP planner (shells to Ollama / vLLM, picks
   TTPs for a target inventory, emits a replayable plan envelope).
 - **v1.0** — full ATT&CK coverage, CI matrix, defense-procurement-shaped
