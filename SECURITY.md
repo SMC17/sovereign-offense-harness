@@ -73,6 +73,35 @@ The tools do **not** trust:
 - The shell environment beyond `$PATH` for child processes.
 - Other agents on the host (none of these tools talk to a daemon).
 
+### Do not embed credentials in TTP descriptors
+
+The TTP descriptor's `exec` field — and the substituted ART exec line
+after `#{var}` resolution — is captured verbatim into the audit
+envelope JSON. A line like
+`curl -H "Authorization: Bearer $TOKEN" …`
+written into a descriptor results in the literal bearer token (after
+shell expansion at run time) and the descriptor text both being
+visible in `envelopes/<id>-<ts>.json`.
+
+Use environment-variable indirection. The runner already passes
+`$TARGET` through the child shell; the same pattern works for
+`$API_TOKEN`, `$AWS_SECRET_ACCESS_KEY`, etc. Keep secrets out of the
+descriptor file and out of any ART YAML you import — both are
+captured into the envelope, which is forensic evidence designed to
+be portable.
+
+The envelope also records the host's `hostname` in plaintext. For
+defense-lab / sensitive-target work, treat the envelope as a
+hostname-disclosing artifact. A `--anonymize` flag is on the v0.4
+roadmap.
+
+### AGPL does not restrict use case
+
+The license is copyleft, not responsible-use. The project relies
+entirely on downstream-operator authorization. See
+[`THREAT_MODEL.md`](THREAT_MODEL.md) and the
+**Authorized Use Only** notice at the top of the README.
+
 ## Coordinated disclosure
 
 [90-day clock](https://en.wikipedia.org/wiki/Coordinated_vulnerability_disclosure)

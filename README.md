@@ -1,17 +1,41 @@
 # sovereign-offense-harness
 
+> ## ⚠️ Authorized Use Only
+>
+> **`sovereign-offense-harness` is adversary-emulation tooling intended
+> for use against systems you own or are explicitly authorized to test.**
+> Running offensive techniques against systems you do not own, or
+> against which you do not have written authorization, is a crime in
+> most jurisdictions (Computer Fraud and Abuse Act in the US, Computer
+> Misuse Act in the UK, equivalent statutes EU-wide). The AGPL license
+> does not (and cannot) restrict use case — responsibility for legal,
+> ethical, and authorized operation rests entirely with the operator.
+>
+> The built-in gate (refuse-by-default unless `--target <IP>` ∈
+> whitelist OR `--unsafe-local`) prevents *operator error*. It does not
+> and cannot prevent operator *malice*. If you are not in a position to
+> articulate (in writing, to a counterparty) why your use of this tool
+> is authorized, **do not use it**.
+>
+> See [`THREAT_MODEL.md`](THREAT_MODEL.md) for who this tool is for,
+> who it is not for, and what the gate does and does not do.
+
 > A small Zig CLI that runs a TTP descriptor (JSON, ATT&CK-shaped) via
 > `bash -c`, captures stdout/stderr + exit + duration + per-stream
 > SHA-256 + host fingerprint, and writes a structured JSON audit
 > envelope. Single binary. No third-party Zig deps.
 >
-> **Status: v0.3.0 — early.** ~1160 LOC. Two example TTPs + one ART
-> example shipped. v0.2 added the **safety gate** (refuse-by-default
-> unless `--target <IP>` matches a whitelist OR `--unsafe-local`).
+> **Status: v0.3.1 — early.** ~1180 LOC. Two example TTPs + one ART
+> example shipped. v0.2 added the **operator-error gate**
+> (refuse-by-default unless `--target <IP>` matches a whitelist OR
+> `--unsafe-local`).
 > **v0.3 adds an `--art` mode (EXPERIMENTAL):** a minimal in-tree YAML
 > parser + Atomic Red Team adapter that translates ART atomic-test
-> descriptors into the existing Ttp shape. Safety gate still applies. The
+> descriptors into the existing Ttp shape. Gate still applies. The
 > v0.2 surface (`run --ttp …`, `validate …`) is unchanged.
+> **v0.3.1 polish:** added the authorized-use notice + threat model
+> above and made the gate / ART selection / unsafe-local flag emit
+> loud warnings to stderr at run time.
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Zig 0.16](https://img.shields.io/badge/Zig-0.16-orange.svg)](https://ziglang.org/)
@@ -199,8 +223,15 @@ sovereign-offense-harness run --unsafe-local --art file.yml --art-test index:1
 ## ⚠️ Safety — read this before running anything
 
 The TTP's `exec` field runs via `bash -c` as the invoking user. There
-is no sandbox. v0.2 adds a **refuse-by-default safety gate**: every
-`run` must explicitly acknowledge what's being targeted.
+is no sandbox. v0.2 added a **refuse-by-default operator-error gate**:
+every `run` must explicitly acknowledge what's being targeted, via
+either `--target <IP>` (whitelist-checked) or `--unsafe-local`.
+
+**This is an accident gate, not an adversary gate.** It catches
+fat-fingered `run`s against the wrong host; it does not slow down an
+operator who *wants* to fire an unsafe TTP — `--unsafe-local` is one
+flag away. The honest framing: it makes accidents loud, and the
+loudness is the point. See [`THREAT_MODEL.md`](THREAT_MODEL.md).
 
 Two acknowledgement paths:
 
@@ -246,6 +277,21 @@ Other safety guidance:
 - Do not run this against production. Period.
 - Do not pipe random TTP descriptors from the internet through this
   any more than you'd pipe a stranger's bash script into `sudo bash`.
+- **Do not embed credentials in TTP descriptor `exec` lines.** The
+  literal `exec` string is captured verbatim into the envelope JSON.
+  Use environment variables (the runner already exposes `$TARGET` —
+  pass other secrets the same way). The envelope is forensic
+  evidence, not a secret store.
+- **The envelope writes the host's `hostname` in plaintext.** For
+  defense-lab / private-target work, treat envelopes as
+  hostname-disclosing artifacts. A `--anonymize` flag is on the v0.4
+  roadmap.
+- **`--art` runs the first atomic in the file by default.** ART files
+  routinely contain multiple variants with very different risk
+  profiles. The runner echoes the selected atomic + the substituted
+  exec line to stderr before running, so you see what's about to
+  happen — but read the YAML first and pass `--art-test <name|N>`
+  explicitly when the file has more than one atomic.
 
 If you need a battle-tested adversary-emulation tool right now, use
 Atomic Red Team or MITRE Caldera. This is a single-author project at

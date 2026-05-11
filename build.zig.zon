@@ -1,7 +1,7 @@
 .{
     .name = .sovereign_offense_harness,
     .fingerprint = 0x4168a60862d050,
-    .version = "0.3.0",
+    .version = "0.3.1",
     .minimum_zig_version = "0.16.0",
 
     .dependencies = .{},
