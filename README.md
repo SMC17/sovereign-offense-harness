@@ -17,8 +17,8 @@
 [![Zig 0.16](https://img.shields.io/badge/Zig-0.16-orange.svg)](https://ziglang.org/)
 
 Part of the [Sovereign Stack](https://stax.dev/sovereign-stack). Companion
-to [`sentinel-sbom`](https://github.com/stax/sentinel-sbom) and
-[`sovereign-edge`](https://github.com/stax/sovereign-edge).
+to [`sentinel-sbom`](https://github.com/SMC17/sentinel-sbom) and
+[`sovereign-edge`](https://github.com/SMC17/sovereign-edge).
 
 ## Why this exists
 
@@ -166,7 +166,7 @@ labels, not promises.
 ## Install
 
 ```sh
-git clone https://github.com/stax/sovereign-offense-harness
+git clone https://github.com/SMC17/sovereign-offense-harness
 cd sovereign-offense-harness
 zig build              # produces ./zig-out/bin/sovereign-offense-harness
 ```
