@@ -1,3 +1,17 @@
 /zig-out/
 /.zig-cache/
 /envelopes/*.json
+
+# secrets / local-only state
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.crt
+
+# editor / IDE state
+.idea/
+.vscode/
+*.swp
+.DS_Store

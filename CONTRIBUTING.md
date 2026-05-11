@@ -58,7 +58,7 @@ Open an issue first for the second category.
 
 ## Maintainers
 
-- [stax](https://github.com/stax) (lead) — sovereign-stack architecture,
+- [stax](https://github.com/SMC17) (lead) — sovereign-stack architecture,
   Zig + Nix.
 
 ## Code of conduct
