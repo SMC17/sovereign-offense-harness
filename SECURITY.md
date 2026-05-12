@@ -4,17 +4,20 @@
 
 Please **do not** open a public issue for security vulnerabilities.
 
-Email: **security@stax.dev** (alias once `stax.dev` MX is configured;
-fallback `fbw5wgxp59@privaterelay.appleid.com` until then).
+Please report security vulnerabilities via GitHub's private security
+advisory feature at
+<https://github.com/SMC17/sovereign-offense-harness/security/advisories/new>.
 
-Encrypted reports welcome — request the project's current SSH-signing
-public key (`~/.ssh/id_stax_mesh.pub`-shape ED25519 key) by replying to
-the initial acknowledgement email; we'll publish a stable disclosure key
-in this file once one is generated.
+GitHub's advisory channel is end-to-end private between the reporter
+and the project maintainers, supports a CVE workflow, and produces a
+durable record that gets coordinated-disclosure on the advisory's
+publish date. No separate email infrastructure required on either
+side.
 
-Include in your report: project name, version (`<binary> --version`),
-reproduction steps, and any flake.lock / TTP / configuration files
-needed to reproduce. If practical, attach a minimal reproducer.
+Include in your report: project name, version (`<binary> --version`
+or commit SHA), reproduction steps, and any TTP descriptor / ART
+YAML / configuration files needed to reproduce. If practical, attach
+a minimal reproducer.
 
 ## Response timeline
 
