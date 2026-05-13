@@ -35,6 +35,7 @@ jobs:
           # the v0.2 gate requires: this is an ephemeral CI runner, the
           # example TTP is read-only (T1082 system-info discovery), and
           # we accept that `exec` runs as the runner's user.
+          mkdir -p /tmp/envelopes
           ./zig-out/bin/sovereign-offense-harness run \
             --unsafe-local \
             --ttp ttps/examples/t1082-system-information-discovery.json \
