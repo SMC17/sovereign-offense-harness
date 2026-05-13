@@ -340,3 +340,12 @@ AGPL-3.0-or-later. See [LICENSE](LICENSE).
 See [CONTRIBUTING.md](CONTRIBUTING.md). Signed commits required.
 
 Security disclosure: [SECURITY.md](SECURITY.md).
+
+## Part of the Sovereign Stack
+
+This is one piece of a wider set of "don't rent it, run it" infrastructure.
+
+- [**sovereign-edge**](https://github.com/SMC17/sovereign-edge) — Open Cloudflare-class edge bundle as composable NixOS modules
+- [**sentinel-sbom**](https://github.com/SMC17/sentinel-sbom) — Nix `flake.lock` → SPDX SBOM with in-tree narHash verify
+
+See [github.com/SMC17](https://github.com/SMC17) for the full portfolio.
