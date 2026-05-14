@@ -27,18 +27,26 @@
 > SHA-256 + host fingerprint, and writes a structured JSON audit
 > envelope. Single binary. No third-party Zig deps.
 >
-> **Status: v1.0.0 — stable surface.** ~3,160 LOC across `src/`,
-> 20/20 tests pass, CI green. The 1.0 line locks the CLI surface
+> **Status: v0.4.0 — coverage matrix + expanded TTP corpus.** ~3,160
+> LOC across `src/`, 24/24 tests pass, CI green. The CLI surface
 > (`run --ttp <path>`, `validate <path>`, `--art <atomic-test>`,
 > `--target <ip>` / `--unsafe-local` gate) and the JSON audit-envelope
-> schema (`sovereign-offense-harness/envelope/v1`). Built-in TTP examples:
-> two native `.json` descriptors (T1082 system-info discovery, T1016
-> network config discovery) + one ART YAML adapter example. The
-> operator-error gate refuses-by-default unless `--target <IP>` matches
-> a whitelist OR `--unsafe-local` is set; the gate emits loud stderr
-> warnings on every run. Not yet exercised in continuous-deployment
-> production red teams; the **authorized-use notice + threat model
-> above is non-negotiable.**
+> schema (`sovereign-offense-harness/envelope/v1`) are unchanged from
+> v0.3.2. New in v0.4.0: **12 native TTP descriptors** (was 2) across
+> **6 of 14 MITRE ATT&CK Enterprise tactic columns** (was 1), plus
+> [`THREAT_COVERAGE.md`](THREAT_COVERAGE.md) — the coverage matrix that
+> makes the breadth gap auditable (12 / ~650 ATT&CK Enterprise v17.1
+> entries ≈ 1.8%). The one ART YAML adapter example also still ships.
+> The operator-error gate refuses-by-default unless `--target <IP>`
+> matches a whitelist OR `--unsafe-local` is set; the gate emits loud
+> stderr warnings on every run. Honest reconciliation: the previous
+> README status block said `v1.0.0 — stable surface`; the
+> [`FLEET.md`](https://github.com/SMC17/SMC17/blob/main/FLEET.md) audit
+> flagged the tag as a vanity claim (README honest, tag overclaiming).
+> v0.4.0 brings the README back under the version the work actually
+> earns. Not yet exercised in continuous-deployment production red
+> teams; the **authorized-use notice + threat model above is
+> non-negotiable.**
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Zig 0.16](https://img.shields.io/badge/Zig-0.16-orange.svg)](https://ziglang.org/)
@@ -124,13 +132,13 @@ $ jq < envelopes/T1082-1778111282.json
 | | sovereign-offense-harness | Atomic Red Team | MITRE Caldera | AttackIQ |
 |---|---|---|---|---|
 | What it is today | small TTP runner + envelope writer | TTP library + cross-platform runner | full agent-orchestration framework | enterprise platform |
-| TTP library size | 2 example TTPs | ~1,500+ atomics | ~600 abilities | proprietary, not public |
+| TTP library size | 12 example TTPs across 6 of 14 ATT&CK tactic columns ([THREAT_COVERAGE.md](THREAT_COVERAGE.md)) | ~1,500+ atomics | ~600 abilities | proprietary, not public |
 | Runtime form | single Zig binary | PowerShell + cross-platform runner; the library itself is YAML/JSON | server + agents + UI | hosted SaaS + agents |
 | Multi-host orchestration | none | manual (run on each host) | yes (built-in agent framework) | yes |
 | Bring your own TTPs | yes (JSON descriptor) | yes (their schema) | yes (abilities) | mostly proprietary library |
 | Detection / blue-team integration | envelope JSON consumed by your own pipeline | none built-in | reporting + tagging | enterprise-grade reporting |
 | Open source | AGPL | MIT | Apache 2.0 | proprietary |
-| Maturity | v0.3, 1 author, ~4 days of work | mature, large community | mature, MITRE-backed | mature commercial |
+| Maturity | v0.4, 1 author, ~8 days of work | mature, large community | mature, MITRE-backed | mature commercial |
 | Single-binary supply chain | yes (Zig binary, no third-party runtime) | no (PowerShell or runner toolchain required) | no (Python + Go + UI) | n/a (cloud) |
 
 **Where this fits today**: a small team that wants to run a handful of
@@ -143,18 +151,25 @@ use Atomic Red Team, Caldera, or a commercial platform respectively.
 
 ## Status — what's verified vs not
 
-`v1.0.0` — single author, ~6 days of focused work since 2026-05-07.
+`v0.4.0` — single author, ~8 days of focused work since 2026-05-07.
 ~3,160 LOC Zig, no third-party deps.
 
 What works:
-- `zig build` + `zig build test` green; 18 unit tests (TTP parser,
-  missing-id rejection, YAML subset parser, ART adapter, plus an
-  end-to-end ART adapter test).
+- `zig build` + `zig build test` green; 24 in-source tests (TTP parser,
+  missing-id rejection, three wrong-type rejection cases, YAML subset
+  parser, ART adapter, end-to-end ART adapter test, plus a 3000-trial
+  adversarial fuzz harness for `parseTtp`).
 - Reads JSON TTP descriptor, executes via `bash -c`, captures
   stdout/stderr/exit/duration, hashes each stream with SHA-256, writes
   a JSON envelope to disk.
-- Two example TTPs ship in the native JSON shape, both intentionally
-  read-only enumeration (T1018 `ip neigh show`, T1082 `uname -a`).
+- **12 native TTP descriptors** across 6 of 14 MITRE ATT&CK Enterprise
+  tactic columns: Discovery (T1082 ×2, T1057, T1018 ×2),
+  Credential Access (T1003.008, T1552.001), Persistence (T1053.003,
+  T1037.004), Defense Evasion (T1070.002 DRY-RUN ONLY), Collection
+  (T1005), Command and Control (T1071.001 loopback heartbeat).
+  Each TTP defaults to refuse-by-default and inherits the v0.2
+  operator-error gate. See [`THREAT_COVERAGE.md`](THREAT_COVERAGE.md)
+  for the coverage matrix, evidence links, and per-TTP safety notes.
 - One example ART atomic ships at `ttps/examples/art-t1082-system-info.yml`.
 - **v0.2 safety gate**: `run` refuses unless `--target <IP>` matches a
   whitelist CIDR/IP in `~/sentinel-lab/lab-targets.txt` OR
@@ -299,8 +314,11 @@ Other safety guidance:
 
 If you need a battle-tested adversary-emulation tool right now, use
 Atomic Red Team or MITRE Caldera. This is a single-author project at
-v0.2; the safety story is reasonable but the TTP library is two
-examples.
+v0.4; the safety story is reasonable, the TTP library is 12 examples
+across 6 of 14 ATT&CK Enterprise tactic columns
+([`THREAT_COVERAGE.md`](THREAT_COVERAGE.md) lists the breadth gap
+explicitly), and the runner-itself surface area is small enough to read
+end-to-end in an afternoon.
 
 ## Roadmap
 
@@ -311,9 +329,12 @@ examples.
   in-tree minimal YAML subset parser + ART → Ttp adapter, `--art` /
   `--art-test` flags, bash/sh executors only. Batch mode and
   `--detect-only` deferred to v0.4.
-- **v0.4** — Sigma rule + Velociraptor artifact emission from gaps;
-  envelope schema validator and consumer-side checker; ART batch mode
-  + `--check-deps`.
+- **v0.4** ✅ shipped (partial) — coverage matrix
+  ([`THREAT_COVERAGE.md`](THREAT_COVERAGE.md)) + expanded TTP corpus
+  (12 native descriptors across 6 of 14 ATT&CK Enterprise tactic
+  columns). Sigma rule + Velociraptor artifact emission, envelope
+  schema validator, and ART batch mode / `--check-deps` deferred to
+  v0.4.x point releases.
 - **v0.5+** — Local-LLM TTP planner (shells to Ollama / vLLM, picks
   TTPs for a target inventory, emits a replayable plan envelope).
 - **v1.0** — full ATT&CK coverage, CI matrix, defense-procurement-shaped

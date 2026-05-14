@@ -1,4 +1,66 @@
-## Unreleased
+## [0.4.0] — 2026-05-14
+
+### Added
+
+- **`THREAT_COVERAGE.md`** — MITRE ATT&CK Enterprise coverage matrix
+  structured by tactic column. Counts 12 TTPs across 6 of 14 tactic
+  columns (~1.8% of ATT&CK Enterprise v17.1 entries), names what is
+  not covered, and includes a Type-I / Type-II honest audit at the
+  bottom. The matrix is the audit surface for the breadth gap — not
+  a marketing surface.
+- **10 new TTP descriptors** under `ttps/examples/`, all defaulting to
+  refuse-by-default and gated by `--target <whitelisted_IP>` OR
+  `--unsafe-local`:
+  - **Discovery (TA0007):** `t1082-system-information-discovery-extended.json`
+    (kernel + distro + `lscpu` + `free -h` + mounts),
+    `t1057-process-discovery.json` (`ps` + `/proc` PID count),
+    `t1018-remote-system-discovery-loopback.json` (ping 127.0.0.1 +
+    ARP cache, no external scans).
+  - **Credential Access (TA0006):** `t1003-008-etc-passwd-shadow.json`
+    (reads `/etc/passwd`, attempts `/etc/shadow` — records
+    `shadow-readable=false (not authorized to read)` when not root,
+    that refusal IS the audit evidence),
+    `t1552-001-unsecured-credentials-in-files.json` (pattern-counts
+    credential-shaped lines in `$HOME` top-level dotfiles; contents
+    redacted, counts only).
+  - **Persistence (TA0003):** `t1053-003-cron-job.json` (read-only
+    enumeration of cron paths; NEVER writes a crontab),
+    `t1037-004-rc-scripts.json` (read-only enumeration of
+    `/etc/rc.local`, init.d, systemd units; NEVER writes a script
+    or enables a service).
+  - **Defense Evasion (TA0005):** `t1070-002-clear-linux-logs-dryrun.json`
+    — **DRY-RUN ONLY**. The `exec` line uses `stat` / `ls -la` to
+    enumerate log paths and sizes only; no `rm`, no `truncate`, no
+    `>`, no `journalctl --vacuum-*`. The descriptor's
+    `stdout_excludes` asserts the absence of those commands as a
+    structural guardrail.
+  - **Collection (TA0009):** `t1005-local-system-data.json`
+    (reads `/etc/hostname`, `/etc/timezone`, `/etc/issue`,
+    `$HOME/.profile` size; captures to envelope stdout, no network
+    exfil).
+  - **Command and Control (TA0011):** `t1071-001-loopback-http-heartbeat.json`
+    (single `curl` to `http://127.0.0.1:65001/heartbeat`;
+    loopback-only, no real C2 server, no off-host traffic).
+- README status block bumped from `v1.0.0 — stable surface` to
+  `v0.4.0 — coverage matrix + expanded TTP corpus`. The README's
+  prior `v1.0.0` tag was flagged in [`FLEET.md`](https://github.com/SMC17/SMC17/blob/main/FLEET.md)
+  as a vanity claim relative to the actual surface; v0.4.0 brings the
+  README under the version the work actually earns. Honest comparison
+  table updated: TTP library size now `12 example TTPs across 6 of 14
+  ATT&CK tactic columns` (was `2 example TTPs`).
+
+### Notes
+
+- CLI surface unchanged. The v0.2 safety gate
+  (`--target <whitelisted_IP>` / `--unsafe-local`) and the
+  `sovereign-offense-harness/envelope/v1` schema URI are stable
+  across this release.
+- Every new TTP smoke-runs end-to-end with `--unsafe-local` on the
+  maintainer's workstation as of 2026-05-14: 10 / 10 produced a
+  valid `jq`-parseable envelope with `verdict=PASS`.
+- Type-I posture: this release does NOT claim "ATT&CK coverage." It
+  claims 12 / ~650 ATT&CK Enterprise v17.1 entries (~1.8%) and the
+  coverage matrix is the receipts.
 
 ### Fixed
 
