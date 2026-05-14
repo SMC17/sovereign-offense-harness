@@ -1,0 +1,12 @@
+{
+  "id": "T1018",
+  "name": "Remote System Discovery (loopback only)",
+  "description": "Discover hosts visible on the loopback interface and the local ARP cache, without scanning external networks. MITRE ATT&CK T1018. Localhost-scoped: pings 127.0.0.1 only, then dumps the existing arp cache. Read-only, no remote probes. Safety: refuse-by-default unless --target <whitelisted_IP> or --unsafe-local.",
+  "platforms": ["linux"],
+  "exec": "ping -c 1 -W 1 127.0.0.1 2>/dev/null | head -5; echo '---'; ip neigh show 2>/dev/null || arp -a 2>/dev/null || true",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "127.0.0.1",
+    "stdout_excludes": []
+  }
+}
