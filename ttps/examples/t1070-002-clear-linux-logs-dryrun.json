@@ -1,0 +1,12 @@
+{
+  "id": "T1070.002",
+  "name": "Indicator Removal — Clear Linux Logs (DRY-RUN ONLY)",
+  "description": "DRY-RUN ONLY. This TTP describes what an adversary WOULD clear (/var/log/auth.log, /var/log/syslog, /var/log/wtmp, /var/log/btmp, journalctl, ~/.bash_history) and reports their sizes — but the harness DOES NOT clear, truncate, rotate, or modify any log file. The `exec` line uses `ls -la` and `stat` only; no `rm`, no `>`, no `truncate`, no `journalctl --vacuum-*`. Defense-engineers can use the dry-run output to verify their log-monitoring picks up the enumeration step itself. MITRE ATT&CK T1070.002. Safety: refuse-by-default unless --target <whitelisted_IP> or --unsafe-local. The dry-run posture is structural — modifying this descriptor to actually clear logs requires changing the `exec` field, which is captured verbatim into the audit envelope.",
+  "platforms": ["linux"],
+  "exec": "echo '*** DRY-RUN: this TTP enumerates log paths and sizes ONLY. No clear/truncate/rotate is performed. ***'; for p in /var/log/auth.log /var/log/syslog /var/log/wtmp /var/log/btmp /var/log/secure /var/log/messages \"$HOME/.bash_history\" \"$HOME/.zsh_history\"; do if [ -e \"$p\" ]; then sz=$(stat -c '%s' \"$p\" 2>/dev/null); echo \"would-clear path='$p' size_bytes=$sz\"; else echo \"would-clear path='$p' status=absent\"; fi; done; echo '--- journalctl (size only) ---'; journalctl --disk-usage 2>/dev/null || echo '(journalctl not available)'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "DRY-RUN",
+    "stdout_excludes": ["rm ", "truncate ", "--vacuum"]
+  }
+}
