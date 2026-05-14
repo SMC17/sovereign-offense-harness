@@ -1,3 +1,31 @@
+## Unreleased
+
+### Fixed
+
+- **`parseTtp` safety bug** — three unchecked `.string` accesses on
+  `std.json.Value` (`id`, `name`, `exec`) would UB-panic in Debug /
+  ReleaseSafe when fed an adversarial descriptor whose required-string
+  field was a non-string JSON type (e.g. `{"id": 42}`). The existing
+  19-test suite covered happy paths and missing-field paths but not
+  wrong-type-field paths; the project's own `SECURITY_REVIEW.md`
+  explicitly named adversarial descriptor fuzzing as a follow-on
+  workstream. Each access now type-checks before reaching for the
+  union field and returns `error.TtpIdNotString` /
+  `error.TtpNameNotString` / `error.TtpExecNotString`.
+
+### Added
+
+- **Three wrong-type unit tests** + a **3000-trial adversarial fuzz
+  harness** for `parseTtp` in `src/main.zig`. The fuzz harness applies
+  bit-flip / byte-insert / byte-delete / truncate / type-substitute
+  mutations to a known-valid descriptor (1–4 ops per trial, seeded
+  PRNG `0xADF7_2026_0514_C0DE`) and asserts only that the parser
+  returns — either a `Ttp` or a clean error — never panics. Cross-check
+  asserts both ok-count and err-count are positive, so a broken
+  mutator that produces only-valid or only-invalid inputs would also
+  fail the test.
+- Total in-source tests: 20 → 24. `zig build test` ~1 s.
+
 ## v1.0.0 — 2026-05-13
 
 **Production-grade milestone.**

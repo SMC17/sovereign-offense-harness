@@ -347,8 +347,18 @@ fn parseTtp(allocator: std.mem.Allocator, json_bytes: []const u8) !Ttp {
     if (root != .object) return error.TtpNotObject;
     const o = root.object;
 
-    const id = (o.get("id") orelse return error.TtpMissingId).string;
-    const name = (o.get("name") orelse return error.TtpMissingName).string;
+    // Defensive: each required-string field must (a) exist (b) be a JSON
+    // string. The previous version reached for `.string` without checking
+    // the tag, which UB-panics in Debug/ReleaseSafe on adversarial input
+    // like `{"id": 42, ...}`.
+    const id_val = o.get("id") orelse return error.TtpMissingId;
+    if (id_val != .string) return error.TtpIdNotString;
+    const id = id_val.string;
+
+    const name_val = o.get("name") orelse return error.TtpMissingName;
+    if (name_val != .string) return error.TtpNameNotString;
+    const name = name_val.string;
+
     const description = if (o.get("description")) |d|
         if (d == .string) d.string else ""
     else
@@ -363,7 +373,9 @@ fn parseTtp(allocator: std.mem.Allocator, json_bytes: []const u8) !Ttp {
         }
     }
 
-    const exec = (o.get("exec") orelse return error.TtpMissingExec).string;
+    const exec_val = o.get("exec") orelse return error.TtpMissingExec;
+    if (exec_val != .string) return error.TtpExecNotString;
+    const exec = exec_val.string;
 
     var expected_exit_code: ?i64 = null;
     var expected_stdout_contains: ?[]const u8 = null;
@@ -759,6 +771,123 @@ test "parseTtp rejects missing id" {
         \\{ "name": "no-id", "exec": "true" }
     ;
     try std.testing.expectError(error.TtpMissingId, parseTtp(a, fixture));
+}
+
+test "parseTtp rejects non-string id (was UB-panic in <=v1.0)" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const fixture =
+        \\{ "id": 42, "name": "x", "exec": "true" }
+    ;
+    try std.testing.expectError(error.TtpIdNotString, parseTtp(a, fixture));
+}
+
+test "parseTtp rejects non-string name (was UB-panic in <=v1.0)" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const fixture =
+        \\{ "id": "T1234", "name": null, "exec": "true" }
+    ;
+    try std.testing.expectError(error.TtpNameNotString, parseTtp(a, fixture));
+}
+
+test "parseTtp rejects non-string exec (was UB-panic in <=v1.0)" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const fixture =
+        \\{ "id": "T1234", "name": "x", "exec": ["true", "false"] }
+    ;
+    try std.testing.expectError(error.TtpExecNotString, parseTtp(a, fixture));
+}
+
+test "parseTtp adversarial: 3000 random JSON mutations never panic" {
+    // Regression guard for the safety class fixed in this commit:
+    // before the fix, lines accessing `.string` directly on
+    // `std.json.Value` would safety-panic in Debug / ReleaseSafe when fed
+    // an adversarial descriptor like `{"id": 42}`. This harness mutates a
+    // known-valid descriptor with random byte ops and asserts only that
+    // parseTtp returns — either a Ttp or a clean error — never panics.
+    //
+    // Seed is fixed; a failure is reproducible from the printed test seed.
+    var prng = std.Random.DefaultPrng.init(0xADF7_2026_0514_C0DE);
+    const rand = prng.random();
+
+    const valid =
+        \\{"id":"T1018","name":"Remote System Discovery","description":"d",
+        \\ "platforms":["linux"],"exec":"ip neigh show",
+        \\ "expected":{"exit_code":0,"stdout_contains":"x","stdout_excludes":["y","z"]}}
+    ;
+
+    var trial: usize = 0;
+    var ok_count: usize = 0;
+    var err_count: usize = 0;
+    while (trial < 3000) : (trial += 1) {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+
+        // Build a mutated copy.
+        var buf: std.ArrayList(u8) = .empty;
+        try buf.appendSlice(a, valid);
+
+        // Apply 1..=4 random mutation ops.
+        const ops = 1 + rand.uintLessThan(usize, 4);
+        var op_i: usize = 0;
+        while (op_i < ops) : (op_i += 1) {
+            if (buf.items.len == 0) break;
+            const op = rand.uintLessThan(u8, 5);
+            switch (op) {
+                0 => { // bit flip
+                    const idx = rand.uintLessThan(usize, buf.items.len);
+                    buf.items[idx] ^= @as(u8, 1) << @intCast(rand.uintLessThan(u8, 8));
+                },
+                1 => { // delete a byte
+                    const idx = rand.uintLessThan(usize, buf.items.len);
+                    _ = buf.orderedRemove(idx);
+                },
+                2 => { // insert a random byte
+                    const idx = rand.uintLessThan(usize, buf.items.len + 1);
+                    try buf.insert(a, idx, rand.int(u8));
+                },
+                3 => { // truncate
+                    const cut = rand.uintLessThan(usize, buf.items.len + 1);
+                    buf.shrinkRetainingCapacity(cut);
+                },
+                4 => { // replace a string literal with a number/null/array fragment
+                    const choices = [_][]const u8{ "42", "null", "true", "[]", "{}" };
+                    const c = choices[rand.uintLessThan(usize, choices.len)];
+                    // splice c at a random position (length-preserving-ish)
+                    const idx = rand.uintLessThan(usize, buf.items.len);
+                    const tail_start = @min(buf.items.len, idx + c.len);
+                    // Build new buffer: [0..idx] ++ c ++ [tail_start..]
+                    var new_buf: std.ArrayList(u8) = .empty;
+                    try new_buf.appendSlice(a, buf.items[0..idx]);
+                    try new_buf.appendSlice(a, c);
+                    if (tail_start < buf.items.len) {
+                        try new_buf.appendSlice(a, buf.items[tail_start..]);
+                    }
+                    buf = new_buf;
+                },
+                else => unreachable,
+            }
+        }
+
+        // The contract: parseTtp must either return a Ttp or an error.
+        // It MUST NOT panic. Discard both outcomes; count only.
+        if (parseTtp(a, buf.items)) |_| {
+            ok_count += 1;
+        } else |_| {
+            err_count += 1;
+        }
+    }
+
+    // Sanity: at least SOME mutations should both succeed and fail.
+    // (If all 3000 trials succeeded or all failed, the mutator is broken.)
+    try std.testing.expect(ok_count > 0);
+    try std.testing.expect(err_count > 0);
 }
 
 test "writeJsonString escapes control bytes and structural chars" {
