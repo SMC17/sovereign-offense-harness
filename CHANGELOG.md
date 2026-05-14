@@ -39,13 +39,27 @@ the initial 3 / 9. The only remaining survivor (M04 — CIDR `/32`
 boundary in `checkWhitelist`) requires a temp-whitelist-file test
 fixture and is filed below.
 
-### Filed as follow-up
+### Also closed: M04 CIDR /32 boundary
 
-- **M04 — CIDR prefix `/32` boundary** (`checkWhitelist` line 299):
-  `prefix > 32` → `prefix >= 32` would slip through because no test
-  parses a `/32` whitelist line. Closing requires a `checkWhitelist`
-  test scaffold — write a temp whitelist file, exercise the matcher
-  with `/32`, `/24`, `/0`, and malformed `/33` cases.
+- `tests/safety_gate_integration.sh` extended with a 6th case that
+  writes a temp whitelist `127.0.0.1/32` and verifies `--target
+  127.0.0.1 --lab-targets <tmp>` is accepted. Kills M04 (under the
+  mutation, `/32` lines are dropped and the target is refused).
+
+### Final mutation score on the stylized operator set: 9 / 9 killed (100 %)
+
+Progression across this session:
+- Initial: 3/9 (parseTtp checks only)
+- After parseIpv4 boundary tests: 5/9
+- After safety-gate integration test: 8/9
+- After /32 boundary test: **9/9**
+
+Honest scope: 9 hand-picked operators is far from exhaustive. 100 % on
+this script certifies that **the listed mutation classes are caught** —
+it does not certify universal bug-catching. The discipline's job here
+was to surface that the safety-gate logic had zero direct test
+coverage; that goal is achieved and the gate is now end-to-end verified
+in the production binary.
 
 ## [0.4.0] — 2026-05-14
 

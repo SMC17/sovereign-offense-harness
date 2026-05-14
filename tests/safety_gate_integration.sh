@@ -106,6 +106,24 @@ assert_case \
   2 "--art-test requires --art" \
   run --ttp "$TTP" --art-test "some-test-name"
 
+# Case 6 (kills M04): --target 127.0.0.1 with a whitelist containing 127.0.0.1/32
+# Verifies the CIDR /32 boundary is correct — under the M04 mutation
+# (`prefix > 32` -> `prefix >= 32`), /32 lines are dropped and the target
+# would not be found in the whitelist, causing refusal.
+WL=$(mktemp)
+echo "127.0.0.1/32" > "$WL"
+out=$("$BIN" run --ttp "$TTP" --target 127.0.0.1 --lab-targets "$WL" 2>&1)
+got_exit=$?
+rm -f "$WL"
+if echo "$out" | grep -qF "refused by safety gate" || echo "$out" | grep -qF "not in whitelist"; then
+  n_fail=$((n_fail + 1))
+  FAILURES+=("M04 mutation /32 boundary: 127.0.0.1/32 whitelist did not accept 127.0.0.1")
+  echo "  FAIL  /32 whitelist boundary (M04): 127.0.0.1/32 should accept 127.0.0.1"
+else
+  n_pass=$((n_pass + 1))
+  echo "  PASS  /32 whitelist boundary (M04): 127.0.0.1/32 accepts 127.0.0.1 (exit $got_exit)"
+fi
+
 echo
 echo "=== summary ==="
 echo "  pass: $n_pass"
