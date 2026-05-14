@@ -27,17 +27,18 @@
 > SHA-256 + host fingerprint, and writes a structured JSON audit
 > envelope. Single binary. No third-party Zig deps.
 >
-> **Status: v0.3.1 — early.** ~1180 LOC. Two example TTPs + one ART
-> example shipped. v0.2 added the **operator-error gate**
-> (refuse-by-default unless `--target <IP>` matches a whitelist OR
-> `--unsafe-local`).
-> **v0.3 adds an `--art` mode (EXPERIMENTAL):** a minimal in-tree YAML
-> parser + Atomic Red Team adapter that translates ART atomic-test
-> descriptors into the existing Ttp shape. Gate still applies. The
-> v0.2 surface (`run --ttp …`, `validate …`) is unchanged.
-> **v0.3.1 polish:** added the authorized-use notice + threat model
-> above and made the gate / ART selection / unsafe-local flag emit
-> loud warnings to stderr at run time.
+> **Status: v1.0.0 — stable surface.** ~3,160 LOC across `src/`,
+> 20/20 tests pass, CI green. The 1.0 line locks the CLI surface
+> (`run --ttp <path>`, `validate <path>`, `--art <atomic-test>`,
+> `--target <ip>` / `--unsafe-local` gate) and the JSON audit-envelope
+> schema (`sovereign-offense-harness/envelope/v1`). Built-in TTP examples:
+> two native `.json` descriptors (T1082 system-info discovery, T1016
+> network config discovery) + one ART YAML adapter example. The
+> operator-error gate refuses-by-default unless `--target <IP>` matches
+> a whitelist OR `--unsafe-local` is set; the gate emits loud stderr
+> warnings on every run. Not yet exercised in continuous-deployment
+> production red teams; the **authorized-use notice + threat model
+> above is non-negotiable.**
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Zig 0.16](https://img.shields.io/badge/Zig-0.16-orange.svg)](https://ziglang.org/)
@@ -142,7 +143,8 @@ use Atomic Red Team, Caldera, or a commercial platform respectively.
 
 ## Status — what's verified vs not
 
-`v0.3.0` — single author, ~4 days of work. ~1160 LOC Zig.
+`v1.0.0` — single author, ~6 days of focused work since 2026-05-07.
+~3,160 LOC Zig, no third-party deps.
 
 What works:
 - `zig build` + `zig build test` green; 18 unit tests (TTP parser,
