@@ -1,0 +1,12 @@
+{
+  "id": "T1005",
+  "name": "Data from Local System",
+  "description": "Read a small handful of world-readable local files that a post-foothold adversary would commonly stage for exfiltration: /etc/hostname, /etc/timezone, /etc/issue, $HOME/.profile (if present). MITRE ATT&CK T1005. The TTP captures content into the envelope's stdout (which IS the audit record) but performs no network exfil and writes nothing to disk beyond the envelope. Read-only. Safety: refuse-by-default unless --target <whitelisted_IP> or --unsafe-local.",
+  "platforms": ["linux"],
+  "exec": "echo '--- /etc/hostname ---'; cat /etc/hostname 2>/dev/null || echo '(absent)'; echo '--- /etc/timezone ---'; cat /etc/timezone 2>/dev/null || echo '(absent or systemd-managed)'; echo '--- /etc/issue (first 5 lines) ---'; head -5 /etc/issue 2>/dev/null || echo '(absent)'; echo '--- $HOME/.profile (size only) ---'; [ -f \"$HOME/.profile\" ] && stat -c 'size_bytes=%s mtime=%Y' \"$HOME/.profile\" || echo '(absent)'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "---",
+    "stdout_excludes": []
+  }
+}
