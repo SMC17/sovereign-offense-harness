@@ -1,0 +1,12 @@
+{
+  "id": "T1053.003",
+  "name": "Scheduled Task/Job — Cron (read-only)",
+  "description": "Enumerate cron persistence artifacts without writing any. MITRE ATT&CK T1053.003 — adversaries plant cron jobs for persistence; this TTP discovers them. Reads /etc/crontab, /etc/cron.d, /etc/cron.{hourly,daily,weekly,monthly}, /var/spool/cron (if readable), and the runner's own crontab. NEVER writes a crontab entry. Read-only. Safety: refuse-by-default unless --target <whitelisted_IP> or --unsafe-local.",
+  "platforms": ["linux"],
+  "exec": "echo '--- /etc/crontab ---'; head -20 /etc/crontab 2>/dev/null || echo '(absent or unreadable)'; echo '--- /etc/cron.d/ ---'; ls -la /etc/cron.d/ 2>/dev/null || echo '(absent or unreadable)'; for d in hourly daily weekly monthly; do echo \"--- /etc/cron.$d ---\"; ls -la \"/etc/cron.$d\" 2>/dev/null || echo '(absent or unreadable)'; done; echo '--- user crontab ---'; crontab -l 2>/dev/null || echo '(no crontab for this user)'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "---",
+    "stdout_excludes": []
+  }
+}
