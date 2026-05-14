@@ -961,3 +961,45 @@ test {
     _ = @import("yaml.zig");
     _ = @import("art.zig");
 }
+
+// ─── parseIpv4 / CIDR-parser boundary regressions (caught by mutation testing 2026-05-14) ───
+//
+// Mutation testing (tools/mutation-test.sh) surfaced 3 surviving mutants in
+// the IPv4 / CIDR parser:
+//   M04: prefix > 32 -> prefix >= 32 (off-by-one at /32, the legal max)
+//   M05: idx != 4    -> idx == 4    (accept wrong number of octets)
+//   M06: idx >= 4    -> idx > 4     (accept 4 then more)
+//
+// All three are real test-suite blind spots in a security-relevant parser.
+// These tests pin the boundaries.
+
+test "parseIpv4: canonical and edge cases" {
+    try std.testing.expectEqual(@as(u32, 0x01020304), try parseIpv4("1.2.3.4"));
+    try std.testing.expectEqual(@as(u32, 0x00000000), try parseIpv4("0.0.0.0"));
+    try std.testing.expectEqual(@as(u32, 0xFFFFFFFF), try parseIpv4("255.255.255.255"));
+    try std.testing.expectEqual(@as(u32, 0x7F000001), try parseIpv4("127.0.0.1"));
+}
+
+test "parseIpv4 rejects too few octets" {
+    try std.testing.expectError(error.InvalidIpv4, parseIpv4("1.2.3"));
+    try std.testing.expectError(error.InvalidIpv4, parseIpv4("1.2"));
+    try std.testing.expectError(error.InvalidIpv4, parseIpv4("1"));
+    try std.testing.expectError(error.InvalidIpv4, parseIpv4(""));
+}
+
+test "parseIpv4 rejects too many octets (kills mutant M06: idx >= 4 -> idx > 4)" {
+    // Five octets: original returns InvalidIpv4 on the 5th iteration
+    // (idx >= 4). The mutant accepts the 5th and beyond. The third octet
+    // gets correctly parsed in BOTH versions, so the assertion must be
+    // that the FIFTH or later octet trips the error.
+    try std.testing.expectError(error.InvalidIpv4, parseIpv4("1.2.3.4.5"));
+    try std.testing.expectError(error.InvalidIpv4, parseIpv4("1.2.3.4.5.6"));
+}
+
+test "parseIpv4 rejects octet > 255 and non-numeric" {
+    try std.testing.expectError(error.InvalidIpv4, parseIpv4("256.0.0.0"));
+    try std.testing.expectError(error.InvalidIpv4, parseIpv4("1.2.3.300"));
+    try std.testing.expectError(error.InvalidIpv4, parseIpv4("a.b.c.d"));
+    try std.testing.expectError(error.InvalidIpv4, parseIpv4("1..3.4"));
+    try std.testing.expectError(error.InvalidIpv4, parseIpv4("1.2.3."));
+}

@@ -1,3 +1,51 @@
+## Unreleased
+
+### Added — mutation testing discipline
+
+- `tools/mutation-test.sh` — stylized mutation-testing harness applying
+  9 hand-picked operators across `src/main.zig` (safety gate, IPv4/CIDR
+  parser, parseTtp strict-type checks) and `src/art.zig` (ART executor
+  allowlist). Initial run reported **3 / 9 killed** — a **major signal**:
+  the load-bearing safety claim of this tool (refuse-by-default unless
+  `--target <IP>` ∈ whitelist OR `--unsafe-local`) had **zero direct
+  test coverage** of the gate logic. Mutation testing surfaced this
+  precisely.
+
+### Fixed via mutation-driven regression tests (closed in this commit)
+
+- **M05** — parseIpv4 octet-count check `!= 4` → `== 4` killed by new
+  `parseIpv4 rejects too few octets` test (lines 1.2.3 / 1.2 / 1 / empty).
+- **M06** — parseIpv4 octet-overflow `>= 4` → `> 4` killed by new
+  `parseIpv4 rejects too many octets` test (1.2.3.4.5 / 1.2.3.4.5.6).
+- Plus value-range tests: parseIpv4 of 0.0.0.0 / 127.0.0.1 /
+  255.255.255.255 round-trip correctly; octet > 255 rejected;
+  non-numeric / empty-octet rejected. **4 new tests, 24 → 28 total.**
+
+### Filed as follow-up (mutation-testing findings to close next)
+
+- **M01 — both-paths-given gate sense flip** (line 140): `ttp_path != null
+  AND art_path != null` accepts a state that should be ambiguity-rejected.
+  Closing requires CLI subprocess integration tests like the mast
+  `strict_mode_integration.sh` harness.
+- **M02 — refuse-by-default gate sense flip** (line 156): the
+  **load-bearing safety check** `target == null and !unsafe_local`. A
+  flipped sense allows execution without authorization — the exact
+  failure mode the tool's authorized-use notice exists to prevent. Needs
+  subprocess integration test.
+- **M03 — target+unsafe conflicting-flags check** (line 176): mutually
+  exclusive flag combinations not pinned. Subprocess integration test.
+- **M04 — CIDR prefix `/32` boundary** (line 299): `prefix > 32` →
+  `prefix >= 32` slips through because no test parses a `/32` whitelist
+  line. Closing requires a `checkWhitelist`-level test fixture (temp
+  whitelist file + Io interface).
+
+Final mutation score after the in-scope regression tests: **5 / 9
+killed (55.6 %)**. Honest scope: 9 hand-picked operators is far from
+exhaustive; the *real* finding here is the safety-gate coverage gap,
+which is documented above and represents a **legitimate v0.5
+release-blocker** for any deployment claiming the gate as a security
+boundary.
+
 ## [0.4.0] — 2026-05-14
 
 ### Added
