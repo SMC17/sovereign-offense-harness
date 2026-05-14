@@ -1,11 +1,11 @@
 # sovereign-offense-harness status
 
 Last green: 2026-05-11 (v0.3.1 — `unit-tested`, 20/20)
-Last touched: 2026-05-11 (Claude, pass-4)
+Last touched: 2026-05-11 (sean, pass-4)
 
 ## Active focus
 
-- **Claude (2026-05-11 pass-4):** v0.3.1 — publish-readiness polish
+- **sean (2026-05-11 pass-4):** v0.3.1 — publish-readiness polish
   driven by WS 6 SECURITY_REVIEW.md.
   - **Authorized-Use-Only notice** added at the top of README.md
     (above the v0.3 status block). Explicit framing: AGPL doesn't
@@ -37,7 +37,7 @@ Last touched: 2026-05-11 (Claude, pass-4)
   - 20/20 tests still pass. v0.3.0 surface (`--ttp`, `--art`,
     `--target`, `--unsafe-local`, `--art-test`) unchanged.
 
-- **Claude (2026-05-11 pass-3):** v0.3.0 — Atomic Red Team adapter
+- **sean (2026-05-11 pass-3):** v0.3.0 — Atomic Red Team adapter
   (EXPERIMENTAL).
   - New `src/yaml.zig` (~350 LOC, 9 tests): minimal YAML subset parser.
     Supports block mappings, block sequences, plain/quoted scalars, `|`
@@ -77,7 +77,7 @@ Last touched: 2026-05-11 (Claude, pass-4)
     smoke: both `--art` (multi-line) and `--ttp` (single-line) paths
     produce `jq`-parseable envelopes with substituted `#{var}`.
 
-- **Claude (2026-05-07 pass-2):** v0.2.0 — refuse-by-default safety gate.
+- **sean (2026-05-07 pass-2):** v0.2.0 — refuse-by-default safety gate.
   - `run` subcommand now refuses unless one of two acknowledgements is
     explicit: `--target <IP>` (IP must match a CIDR or bare entry in the
     lab-targets whitelist file, default `~/sentinel-lab/lab-targets.txt`,
@@ -94,7 +94,7 @@ Last touched: 2026-05-11 (Claude, pass-4)
     lines and `#`-comments are ignored. IPv6 is intentionally deferred
     to a later pass (no test rig yet).
 
-- **Claude (2026-05-06 pass-1):** v0.1.0 lands.
+- **sean (2026-05-06 pass-1):** v0.1.0 lands.
   - Subcommands: `run`, `validate`, `--version`, `--help`.
   - TTP descriptor JSON parser + structured envelope emitter.
   - Two safe example TTPs: T1018 (Remote System Discovery — `ip neigh

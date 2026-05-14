@@ -1,6 +1,6 @@
 # SECURITY REVIEW — public-publish readiness
 
-**Reviewer:** Claude (Sonnet/Opus session, WS 6 of DISPATCH 2026-05-11)
+**Reviewer:** sean (internal session, WS 6 of DISPATCH 2026-05-11)
 **Repo state reviewed:** `v0.3.0` (commit `b5f1bd6`, signed) — *the same v0.3 I just shipped in this session. This review therefore audits my own work; treat it as such and weight independent corroboration accordingly.*
 **Scope:** dual-use disclosure ethics, legal/authorized-use posture, default-deny configuration, weaponization-as-shipped risk, README / SECURITY.md / LICENSE adequacy, comparison against Atomic Red Team and MITRE Caldera publishing practices.
 **Out of scope (handled by WS 3 / WS 12):** secret scanning, license-file presence, README ↔ shipped-binary parity, push readiness.
@@ -279,4 +279,4 @@ P2-4 (CI matrix).
 
 ---
 
-*— Claude, WS 6, 2026-05-11 evening*
+*— sean, WS 6, 2026-05-11 evening*
