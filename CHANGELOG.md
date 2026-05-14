@@ -21,30 +21,31 @@
   255.255.255.255 round-trip correctly; octet > 255 rejected;
   non-numeric / empty-octet rejected. **4 new tests, 24 → 28 total.**
 
-### Filed as follow-up (mutation-testing findings to close next)
+### Fixed via subprocess integration test (closes the load-bearing safety-gate gap)
 
-- **M01 — both-paths-given gate sense flip** (line 140): `ttp_path != null
-  AND art_path != null` accepts a state that should be ambiguity-rejected.
-  Closing requires CLI subprocess integration tests like the mast
-  `strict_mode_integration.sh` harness.
-- **M02 — refuse-by-default gate sense flip** (line 156): the
-  **load-bearing safety check** `target == null and !unsafe_local`. A
-  flipped sense allows execution without authorization — the exact
-  failure mode the tool's authorized-use notice exists to prevent. Needs
-  subprocess integration test.
-- **M03 — target+unsafe conflicting-flags check** (line 176): mutually
-  exclusive flag combinations not pinned. Subprocess integration test.
-- **M04 — CIDR prefix `/32` boundary** (line 299): `prefix > 32` →
-  `prefix >= 32` slips through because no test parses a `/32` whitelist
-  line. Closing requires a `checkWhitelist`-level test fixture (temp
-  whitelist file + Io interface).
+- **`tests/safety_gate_integration.sh`** — 5-case subprocess test of the
+  installed binary, modeled on `mast/tests/strict_mode_integration.sh`.
+  Wired into `zig build test` via `addSystemCommand`. Cases:
+  - No `--target` / `--unsafe-local` → exit 3 + "refused by safety gate"
+    on stderr **(kills M02 — the load-bearing refuse-by-default check)**
+  - `--unsafe-local` → passes gate, envelope writer engages
+  - `--target X --unsafe-local` → exit 2 + "mutually exclusive"
+    **(kills M03)**
+  - `--ttp X --art Y` → exit 2 + "mutually exclusive" **(kills M01)**
+  - `--art-test X` without `--art` → exit 2 + "--art-test requires --art"
 
-Final mutation score after the in-scope regression tests: **5 / 9
-killed (55.6 %)**. Honest scope: 9 hand-picked operators is far from
-exhaustive; the *real* finding here is the safety-gate coverage gap,
-which is documented above and represents a **legitimate v0.5
-release-blocker** for any deployment claiming the gate as a security
-boundary.
+**Mutation score after this commit: 8 / 9 killed (88.9 %)**. Up from
+the initial 3 / 9. The only remaining survivor (M04 — CIDR `/32`
+boundary in `checkWhitelist`) requires a temp-whitelist-file test
+fixture and is filed below.
+
+### Filed as follow-up
+
+- **M04 — CIDR prefix `/32` boundary** (`checkWhitelist` line 299):
+  `prefix > 32` → `prefix >= 32` would slip through because no test
+  parses a `/32` whitelist line. Closing requires a `checkWhitelist`
+  test scaffold — write a temp whitelist file, exercise the matcher
+  with `/32`, `/24`, `/0`, and malformed `/33` cases.
 
 ## [0.4.0] — 2026-05-14
 
