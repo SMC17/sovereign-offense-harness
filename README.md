@@ -1,5 +1,7 @@
 # sovereign-offense-harness
 
+[![CI](https://github.com/SMC17/sovereign-offense-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/SMC17/sovereign-offense-harness/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/SMC17/sovereign-offense-harness?display_name=tag&sort=semver)](https://github.com/SMC17/sovereign-offense-harness/releases) [![License](https://img.shields.io/github/license/SMC17/sovereign-offense-harness)](LICENSE)
+
 > ## ⚠️ Authorized Use Only
 >
 > **`sovereign-offense-harness` is adversary-emulation tooling intended
