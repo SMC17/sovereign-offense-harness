@@ -20,7 +20,7 @@ const std = @import("std");
 const yaml = @import("yaml.zig");
 const art = @import("art.zig");
 
-const VERSION = "0.3.1";
+const VERSION = "1.0.0";
 const ENVELOPE_SCHEMA = "sovereign-offense-harness/envelope/v1";
 
 const usage =
