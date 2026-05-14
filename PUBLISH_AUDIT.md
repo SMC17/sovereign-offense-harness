@@ -1,134 +1,225 @@
 # PUBLISH_AUDIT — sovereign-offense-harness
 
-**Audit lane:** WS 12 (Claude, codebase audit).
-**Date:** 2026-05-11.
-**Verdict:** PASS-WITH-FIXES → ready to push as `github.com/SMC17/sovereign-offense-harness`.
+**Audit lane:** WS 3 (Codex, README/STATUS vs shipped-binary parity).
+**Date:** 2026-05-12.
+**Verdict:** **PASS-WITH-DOC-VERSION-FIXES**.
 
-**Adjacent lanes:** WS 3 (Codex, README/STATUS audit), WS 6
-(Claude, dual-use security review → `SECURITY_REVIEW.md`).
-WS 12 owns the publishing-readiness layer only — license, secret
-scan, namespace, public-OSS housekeeping. **The dual-use ethics
-+ legal disclaimer + responsible-use review is WS 6's
-authoritative output.** If WS 6 flags BLOCKING, this push must be
-deferred regardless of WS 12's PASS verdict.
+This repo is public and has already received WS 6's security review
+remediation plus WS 12's mechanical publishing pass. My lane audited
+whether the README / STATUS / tags / source / shipped binary tell the
+same story, with extra attention to the Atomic Red Team adapter and
+dual-use posture.
+
+## Scope
+
+- `README.md`, `STATUS.md`, `SECURITY.md`, `THREAT_MODEL.md`,
+  `SECURITY_REVIEW.md`.
+- `src/main.zig`, `src/art.zig`, `src/yaml.zig`, `build.zig`,
+  `build.zig.zon`.
+- TTP descriptors under `ttps/examples/`.
+- License files: `LICENSE`, `NOTICE`.
+- Current Git state, tags, binary output, help text, unit tests, and
+  smoke runs.
 
 ## Findings
 
-### 1. Secret scan — CLEAN
+### 1. Build and test parity — PASS
 
-Dispatch regex
-(`BEGIN .+ PRIVATE KEY|aws_secret|sk-ant-|ghp_|gho_|sk-[a-zA-Z0-9]{20,}|api[_-]key`)
-plus broader sweep (`AKIA*`, `password=`, `bearer …`, `xoxb-`,
-`xoxp-`, `secret_key=`, `ssh-rsa AAAA`) across every git-tracked
-file. **No matches.**
+`zig build --summary all` succeeds.
 
-### 2. Hardcoded targets / production IPs — CLEAN
+`zig build test --summary all` succeeds with `20/20 tests passed`.
 
-The dispatch flagged this as extra-care because the tool is
-offensive. Scanned every tracked file for RFC1918 IP literals,
-real ATT&CK targets, production-shaped hostnames.
+Native descriptor validation succeeds for:
 
-Hits found:
-- `README.md` line 238–239: `10.0.0.0/24`, `192.168.99.42` —
-  documentation examples for the CIDR whitelist format. Both
-  RFC1918 (private), neither connectable from outside a target's
-  own LAN. **OK.**
-- `src/main.zig` line 254: doc-comment example `10.0.0.5` for
-  whitelist-parser unit explanation. **OK.**
+- `ttps/examples/t1082-system-information-discovery.json`
+- `ttps/examples/t1018-remote-system-discovery.json`
 
-No real ATT&CK targets, no production hostnames, no embedded
-credentials in any TTP descriptor. The three shipped TTPs
-(`t1018`, `t1082`, `art-t1082`) are intentionally read-only
-enumeration — verified by reading each `exec` line.
+Native smoke run succeeds and emits parseable JSON:
 
-### 3. EXPERIMENTAL marker consistency — DEFER
+```sh
+tmpdir=$(mktemp -d /tmp/soh-audit.XXXXXX)
+./zig-out/bin/sovereign-offense-harness run --unsafe-local \
+  --ttp ttps/examples/t1082-system-information-discovery.json \
+  --out "$tmpdir"
+jq empty "$tmpdir"/*.json
+rm -rf "$tmpdir"
+```
 
-Per WS 3's lane: "Cross-check that the EXPERIMENTAL marker on
-Atomic Red Team adapter is consistent everywhere."
+ART smoke run succeeds and emits parseable JSON:
 
-Spot-check from WS 12 lens:
-- `README.md` mentions Atomic Red Team adapter (line numbers
-  vary by section). Marker present in v0.3.0 release notes
-  (commit `b5f1bd6`).
-- `STATUS.md` carries the v0.3.0 changelog.
-- WS 3 owns the authoritative cross-check. Deferring.
+```sh
+tmpdir=$(mktemp -d /tmp/soh-art-audit.XXXXXX)
+./zig-out/bin/sovereign-offense-harness run --unsafe-local \
+  --art ttps/examples/art-t1082-system-info.yml \
+  --out "$tmpdir"
+jq empty "$tmpdir"/*.json
+rm -rf "$tmpdir"
+```
 
-### 4. LICENSE — fixed
+The ART run prints the selected atomic and substituted exec before
+execution, and `--unsafe-local` prints the no-sandbox warning.
 
-Same fix as the rest of the WS 12 batch: per-project AGPL
-notice moved to `NOTICE`, full SPDX
-`AGPL-3.0-or-later.txt` (235 lines) installed as `LICENSE`.
+### 2. Version and tag parity — NEEDS FIX BEFORE NEXT AMPLIFICATION
 
-### 5. GitHub namespace — fixed
+Current repository state:
 
-`github.com/stax/<repo>` and `github.com/stax` maintainer link
-rewritten to `github.com/SMC17` in `README.md` and
-`CONTRIBUTING.md`. Verified zero residual `github.com/stax`
-references post-rewrite.
+- `HEAD` is tagged `v0.3.2` at commit `21ee752`.
+- `origin/main` also points at `21ee752`.
+- Tags present: `v0.3.2`, `v0.3.1`, `v0.3.0`, `v0.2.0`, `v0.1.0`.
+- `v0.3.2` changed `SECURITY.md` only: reports now route through
+  GitHub private advisory.
 
-### 6. CODE_OF_CONDUCT.md — added
+Stale or ambiguous surfaces:
 
-Same canonical 50-line CoC as the rest of the batch (Contributor
-Covenant *spirit*, not formal adoption).
+- `./zig-out/bin/sovereign-offense-harness --version` reports
+  `0.3.1`.
+- `src/main.zig` top comment still says `sovereign-offense-harness
+  v0.3.0`; `const VERSION = "0.3.1"`.
+- `build.zig.zon` says `.version = "0.3.1"`.
+- README top status says `v0.3.1 — early`.
+- README "Status — what's verified vs not" starts with `v0.3.0`.
+- README comparison table says maturity is `v0.3`.
+- STATUS.md "Last green" says `v0.3.1`, and the top active-focus
+  section does not mention `v0.3.2`.
+- STATUS.md roadmap still says "GitHub publish as
+  `stax/sovereign-offense-harness`"; the actual public namespace is
+  `SMC17/sovereign-offense-harness`.
 
-### 7. .gitignore — hardened
+This is not a code correctness blocker. It is a publication hygiene
+problem: a reader landing from GitHub sees `v0.3.2` tags, a `0.3.1`
+binary, and mixed `v0.3.0` / `v0.3.1` prose. Fix by either:
 
-**Before:** `/zig-out/`, `/.zig-cache/`, `/envelopes/*.json`
-(audit-envelope outputs are local-only).
+1. bumping source/package/README/STATUS to `0.3.2`, or
+2. explicitly documenting `v0.3.2` as a docs/security-routing tag
+   whose CLI remains `0.3.1`.
 
-**Fix applied:** Added `.env*`, `*.key`, `*.pem`, `*.p12`,
-`*.crt`, `.idea/`, `.vscode/`, `*.swp`, `.DS_Store`. The
-existing `envelopes/*.json` ignore is correct as-is — audit
-envelopes can contain hostnames + command output and should
-stay local.
+Option 1 is cleaner.
 
-### 8. Open-but-not-blocking (flagged for adjacent lanes)
+### 3. Atomic Red Team EXPERIMENTAL marker — PASS
 
-- **WS 6's SECURITY_REVIEW.md is in flight** (untracked).
-  This commit deliberately leaves it untracked so WS 6 can
-  commit when their review finalizes.
-- **WS 3 owns the README/STATUS claim audit** — defer to its
-  `PUBLISH_AUDIT.md` for that layer.
-- **`AGENTS.md` untracked** — WS 4 lane.
-- **`stax.dev` references** in README — same launch-arc
-  aspiration as the rest of the batch; not blocking the push.
+The experimental marker is present and consistent enough for public
+reading:
 
-## Push-blocker dependency
+- README top status: `--art` mode is marked `EXPERIMENTAL`.
+- README usage block: `# v0.3 EXPERIMENTAL`.
+- README "what does NOT work yet" explicitly lists YAML subset limits,
+  rejected executors, ignored cleanup/dependencies, and future
+  `--check-deps`.
+- Help text marks `--art` as `EXPERIMENTAL` and lists bash/sh-only
+  executor support, minimal YAML parser, default substitution, ignored
+  dependencies and cleanup.
+- `src/art.zig` and `src/yaml.zig` comments state the adapter/parser
+  limitations directly.
+- STATUS.md v0.3 section marks ART compatibility `EXPERIMENTAL`.
 
-This repo's push is **gated on WS 6's
-SECURITY_REVIEW.md** clearing the dual-use ethics + legal
-disclaimers + responsible-use review. WS 12 has cleared the
-mechanical pre-push layer; the *ethical* publish decision is
-WS 6 + Stax's call.
+Remaining improvement: in launch copy and examples, prefer explicit
+`--art-test name:...` even for one-atomic files. The current CLI
+default is honest, but explicit selector examples are safer for
+copy-paste public materials.
 
-If WS 6 clears: proceed with the push plan below.
-If WS 6 flags: write `BLOCKING.md` and stop.
+### 4. TTP descriptor safety — PASS
+
+Tracked TTP descriptors are intentionally low-risk enumeration:
+
+- `t1082-system-information-discovery.json`: `uname -a; cat
+  /etc/os-release`.
+- `t1018-remote-system-discovery.json`: `ip neigh show`.
+- `art-t1082-system-info.yml`: `uname -a | tee
+  /tmp/sovereign-offense-art-t1082.out` and `cat /etc/os-release`.
+
+No descriptor contains production targets, real external target IPs,
+tokens, bearer strings, private keys, or production credentials. The
+ART example writes to `/tmp`; that is acceptable for a smoke demo, but
+launch docs should name that side effect if they include the command.
+
+Regex scan findings:
+
+- `README.md`: private RFC1918 whitelist examples `10.0.0.0/24` and
+  `192.168.99.42`; OK as documentation examples.
+- `src/main.zig`: private RFC1918 examples in whitelist parser docs;
+  OK.
+- `SECURITY.md`: `Authorization: Bearer $TOKEN` appears as a warning
+  example; OK.
+- `THREAT_MODEL.md`: `0.0.0.0/0` appears as an example of bypassing
+  the whitelist; OK.
+- `LICENSE`: generic AGPL text includes "password or key"; OK.
+
+### 5. Dual-use public-safety posture — PASS
+
+WS 6's remediation is present:
+
+- Top-of-README "Authorized Use Only" block.
+- README distinguishes operator-error gate from adversary/malice gate.
+- `THREAT_MODEL.md` exists and is explicit about who the tool is and
+  is not for.
+- `SECURITY.md` warns against embedding credentials in descriptors and
+  notes hostname disclosure in envelopes.
+- Runtime `--unsafe-local` warning is present.
+- Runtime ART selection + substituted exec preview is present.
+
+The posture is not magic. It does not prevent malicious use. It is
+honest about that, which is the correct standard for a public
+dual-use tool.
+
+### 6. AGPL sanity — PASS
+
+- `LICENSE` is the full GNU Affero General Public License v3 text
+  (`235` lines).
+- `NOTICE` carries the project-specific copyright and
+  `SPDX-License-Identifier: AGPL-3.0-or-later`.
+- README license section says `AGPL-3.0-or-later`.
+- `src/main.zig` comments say `AGPL-3.0-or-later`.
+
+No AGPL use-case restriction is implied; README and SECURITY.md
+correctly say AGPL is copyleft, not responsible-use licensing.
+
+## Required fixes
+
+Before the next public amplification or patch tag:
+
+1. Reconcile version surfaces to `v0.3.2`, or explicitly document
+   `v0.3.2` as a docs/security-routing tag over a `0.3.1` binary.
+2. Update STATUS.md "Last green" after the 2026-05-12 test run.
+3. Replace the stale roadmap namespace `stax/sovereign-offense-harness`
+   with `SMC17/sovereign-offense-harness`.
+4. Prefer explicit `--art-test name:...` examples in launch copy.
 
 ## Evidence
 
-```
-$ git ls-files | xargs grep -lE "BEGIN .+ PRIVATE KEY|aws_secret|sk-ant-|ghp_|gho_|sk-[a-zA-Z0-9]{20,}|api[_-]key"
-(no matches)
-
-$ wc -l LICENSE NOTICE CODE_OF_CONDUCT.md
-   235 LICENSE
-    17 NOTICE
-    50 CODE_OF_CONDUCT.md
-
-$ grep -rn "github\.com/stax/" .
-(no matches after fix)
-
-$ git tag --list
-v0.1.0
-v0.2.0
-v0.3.0
+```text
+git status --short --branch --untracked-files=all
+git tag --sort=-creatordate
+git log --oneline --decorate -n 8
+zig build --summary all
+zig build test --summary all
+./zig-out/bin/sovereign-offense-harness --version
+./zig-out/bin/sovereign-offense-harness --help
+./zig-out/bin/sovereign-offense-harness validate ttps/examples/t1082-system-information-discovery.json
+./zig-out/bin/sovereign-offense-harness validate ttps/examples/t1018-remote-system-discovery.json
+./zig-out/bin/sovereign-offense-harness run --unsafe-local --ttp ttps/examples/t1082-system-information-discovery.json --out "$tmpdir"
+./zig-out/bin/sovereign-offense-harness run --unsafe-local --art ttps/examples/art-t1082-system-info.yml --out "$tmpdir"
+git grep -n -E "BEGIN .+ PRIVATE KEY|aws_secret|sk-ant-|ghp_|gho_|sk-[A-Za-z0-9]{20,}|api[_-]key|password|Authorization:|Bearer|AKIA|[0-9]{1,3}(\\.[0-9]{1,3}){3}"
+wc -l README.md STATUS.md SECURITY.md THREAT_MODEL.md LICENSE NOTICE src/main.zig src/art.zig src/yaml.zig
 ```
 
-## Push plan (gated on WS 6 clearance)
+## Claim template
 
-```
-gh repo create SMC17/sovereign-offense-harness --public --source=. \
-  --description "Adversary-emulation runner: safety-gated, allow-listed targets, signed audit envelopes. v0.3 ships an EXPERIMENTAL Atomic Red Team adapter."
-git push -u origin main
-git push --tags  # v0.1.0, v0.2.0, v0.3.0
-```
+Claim: `sovereign-offense-harness` is publishable from the WS 3
+README/STATUS-vs-binary lane after small version-surface cleanup.
+
+Proof level: `audited` plus `unit-tested` for the current Zig test
+suite.
+
+Command/source: commands listed above.
+
+False-positive risk: smoke runs covered only the shipped examples, not
+arbitrary ART files or malicious descriptors.
+
+False-negative risk: grep-based scans can miss encoded secrets or
+unsafe semantics hidden in future descriptors.
+
+Not measured: runtime behavior against remote allowlisted targets,
+multi-host orchestration, detection-engineering integration, or
+malicious ART YAMLs.
+
+Confidence: 0.82.

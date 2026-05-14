@@ -1,3 +1,12 @@
+## v1.0.0 — 2026-05-13
+
+**Production-grade milestone.**
+
+- SECURITY.md present (coordinated disclosure policy).
+- LICENSE, README, CONTRIBUTING, CI workflow verified.
+- v1.x cycle: API/surface stable; breaking changes bump to v2.x.
+- Engineering posture: Virgil work-in-progress convention adapted for OSS — v1.0 means we stand behind the existing surface; v1.x refines without breaking.
+
 # Changelog
 
 All notable changes to `sovereign-offense-harness` will be documented here.
