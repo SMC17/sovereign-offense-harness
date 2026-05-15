@@ -1,0 +1,12 @@
+{
+  "id": "T1546.004",
+  "name": "Event Triggered Execution: Unix Shell Configuration Modification (read)",
+  "description": "Persistence / TA0003. Read-only enumeration of shell-config files (.bashrc, .profile, .zshrc) that attackers use for persistence by appending payload-invocation lines. Reports presence + line count of each file in the current user's home. Does NOT read content (to avoid leaking PII / aliases) — just file metadata. Captures the persistence-surface enumeration without exposing the user's customizations.",
+  "platforms": ["linux"],
+  "exec": "for f in ~/.bashrc ~/.bash_profile ~/.profile ~/.zshrc; do if [ -f \"$f\" ]; then echo \"$f: $(wc -l < \"$f\") lines\"; else echo \"$f: missing\"; fi; done",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": ":",
+    "stdout_excludes": []
+  }
+}

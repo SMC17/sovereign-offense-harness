@@ -1,0 +1,12 @@
+{
+  "id": "T1071.001",
+  "name": "Application Layer Protocol — Web Protocols (loopback heartbeat)",
+  "description": "Simulate a C2 heartbeat over HTTP by sending a single GET request to 127.0.0.1 on an ephemeral port. MITRE ATT&CK T1071.001. The request is NEVER routed off the loopback interface; there is no real C2 server and no real exfil. If no listener is running, curl fails fast and the envelope records the failure honestly — that failure IS the audit evidence (the TTP exercised the technique without needing a listener). Safety: refuse-by-default unless --target <whitelisted_IP> or --unsafe-local. The loopback-only target is structural: changing 127.0.0.1 to a routable address requires modifying the `exec` field, which is captured verbatim into the envelope.",
+  "platforms": ["linux"],
+  "exec": "echo '--- loopback HTTP heartbeat (127.0.0.1:65001) ---'; curl --max-time 2 -sS -o /dev/null -w 'http_code=%{http_code} time_total=%{time_total}s remote_ip=%{remote_ip}\\n' http://127.0.0.1:65001/heartbeat 2>&1 || echo 'curl-exit-nonzero (no listener — expected; the connect attempt itself is the audit signal)'; echo 'note: this TTP sent ONE request to loopback only; nothing went off-host'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "loopback",
+    "stdout_excludes": []
+  }
+}

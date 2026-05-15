@@ -1,0 +1,12 @@
+{
+  "id": "T1003.008",
+  "name": "OS Credential Dumping — /etc/passwd and /etc/shadow",
+  "description": "Read /etc/passwd (world-readable) and attempt /etc/shadow (root-only). MITRE ATT&CK T1003.008. If the runner is not root, the /etc/shadow read fails with a non-zero status and the envelope honestly records 'not authorized to read' — that refusal IS the audit evidence. The TTP does not escalate privileges and does not crack hashes. Read-only. Safety: refuse-by-default unless --target <whitelisted_IP> or --unsafe-local.",
+  "platforms": ["linux"],
+  "exec": "echo '--- /etc/passwd (first 10 lines) ---'; head -10 /etc/passwd 2>/dev/null; echo '--- /etc/shadow attempt ---'; if head -1 /etc/shadow 2>/dev/null; then echo 'shadow-readable=true'; else echo 'shadow-readable=false (not authorized to read)'; fi",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "root:",
+    "stdout_excludes": []
+  }
+}

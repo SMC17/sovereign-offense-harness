@@ -1,0 +1,12 @@
+{
+  "id": "T1057",
+  "name": "Process Discovery",
+  "description": "Enumerate running processes via `ps` plus a snapshot of /proc PID count. MITRE ATT&CK T1057 — adversaries inventory running processes to find AV, EDR, and admin tooling. Read-only. Safety: refuse-by-default unless --target <whitelisted_IP> or --unsafe-local.",
+  "platforms": ["linux"],
+  "exec": "ps -eo pid,ppid,user,comm 2>/dev/null | head -50; echo '---'; ls /proc 2>/dev/null | grep -E '^[0-9]+$' | wc -l",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "PID",
+    "stdout_excludes": []
+  }
+}

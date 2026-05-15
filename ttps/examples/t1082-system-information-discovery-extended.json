@@ -1,0 +1,12 @@
+{
+  "id": "T1082",
+  "name": "System Information Discovery (extended)",
+  "description": "Extended host fingerprint: kernel, distro, CPU model, total RAM, mount points. MITRE ATT&CK T1082. Read-only. Safety: refuse-by-default unless --target <whitelisted_IP> or --unsafe-local.",
+  "platforms": ["linux"],
+  "exec": "uname -a; cat /etc/os-release 2>/dev/null || true; (lscpu 2>/dev/null | head -20) || true; (free -h 2>/dev/null) || true; (mount 2>/dev/null | head -10) || true",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "Linux",
+    "stdout_excludes": []
+  }
+}

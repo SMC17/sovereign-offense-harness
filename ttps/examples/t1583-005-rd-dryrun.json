@@ -1,0 +1,12 @@
+{
+  "id": "T1583.005",
+  "name": "Acquire Infrastructure: Botnet (DRY-RUN, documentation-only)",
+  "description": "Resource Development / TA0042. The real technique is botnet acquisition / rental, which is illegal in every jurisdiction this code might run in. This descriptor is DRY-RUN / DOCUMENTATION-ONLY: it prints a stub message naming the technique and refuses to take any action that could resemble actual infrastructure acquisition. Included so the coverage matrix has an honest Resource Development entry rather than pretending the column doesn't exist.",
+  "platforms": ["linux"],
+  "exec": "echo 'RD-T1583.005 DRY-RUN: this descriptor names the technique only. no acquisition action taken. no network call made.'; echo 'documentation: see https://attack.mitre.org/techniques/T1583/005/'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "DRY-RUN",
+    "stdout_excludes": []
+  }
+}

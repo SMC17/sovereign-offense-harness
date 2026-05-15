@@ -1,0 +1,12 @@
+{
+  "id": "T1037.004",
+  "name": "Boot or Logon Initialization Scripts — RC Scripts (read-only)",
+  "description": "Enumerate /etc/rc.local, /etc/init.d, and systemd unit directories. MITRE ATT&CK T1037.004 — RC-script persistence. Read-only inspection only. NEVER writes a script, NEVER creates a systemd unit, NEVER enables a service. Safety: refuse-by-default unless --target <whitelisted_IP> or --unsafe-local.",
+  "platforms": ["linux"],
+  "exec": "echo '--- /etc/rc.local ---'; head -20 /etc/rc.local 2>/dev/null || echo '(absent or unreadable)'; echo '--- /etc/init.d/ ---'; ls /etc/init.d/ 2>/dev/null | head -30 || echo '(absent or unreadable)'; echo '--- /etc/systemd/system/ ---'; ls /etc/systemd/system/ 2>/dev/null | head -30 || echo '(absent or unreadable)'; echo '--- /usr/lib/systemd/system/ (count only) ---'; ls /usr/lib/systemd/system/ 2>/dev/null | wc -l || echo '(absent or unreadable)'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "---",
+    "stdout_excludes": []
+  }
+}

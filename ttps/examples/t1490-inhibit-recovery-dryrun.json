@@ -1,0 +1,12 @@
+{
+  "id": "T1490",
+  "name": "Inhibit System Recovery (DRY-RUN)",
+  "description": "Impact / TA0040. The real technique deletes snapshots / backups / volume-shadow-copies to prevent recovery from ransomware-style impact. This descriptor is DRY-RUN ONLY: it lists candidate recovery surfaces (snapshots / btrfs subvolumes / LVM snapshots / .snapshots dirs) read-only, then prints the would-target list and exits without invoking any deletion syscall.",
+  "platforms": ["linux"],
+  "exec": "echo 'T1490 DRY-RUN: enumerate-only, no deletion'; echo '--- candidate recovery surfaces ---'; ls /.snapshots 2>/dev/null | head -5 || echo '(no /.snapshots)'; btrfs subvolume list / 2>/dev/null | head -5 || echo '(no btrfs subvolumes)'; lvs --quiet 2>/dev/null | head -5 || echo '(no LVM snapshots)'; echo 'no deletion syscall invoked'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "DRY-RUN",
+    "stdout_excludes": []
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "id": "T1078",
+  "name": "Valid Accounts (passwd-file enumeration)",
+  "description": "Initial Access / TA0001 (also Persistence / Privilege Escalation / Defense Evasion — Valid Accounts is cross-tactic). Read /etc/passwd and list users with login shells (proxy for accounts available for valid-credential reuse). Read-only — no credential acquisition, no login attempts. Captures the surface an attacker would enumerate post-foothold to decide which valid accounts to target.",
+  "platforms": ["linux"],
+  "exec": "awk -F: '$7 !~ /(nologin|false|sync|halt|shutdown)$/ {print $1, $3, $7}' /etc/passwd 2>&1 | head -20",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "",
+    "stdout_excludes": []
+  }
+}

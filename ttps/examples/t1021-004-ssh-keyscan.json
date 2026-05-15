@@ -1,0 +1,12 @@
+{
+  "id": "T1021.004",
+  "name": "Remote Services: SSH (loopback host-key scan)",
+  "description": "Lateral Movement / TA0008. Use `ssh-keyscan` against the loopback address to capture the host key of any SSH daemon on the local box. Read-only — initiates a TCP connect to 127.0.0.1:22 and reads the SSH banner + host key, no auth attempt. If no sshd is listening, ssh-keyscan exits non-zero; the envelope captures that. Loopback-only; the target is structural in the exec field.",
+  "platforms": ["linux"],
+  "exec": "ssh-keyscan -T 2 -t rsa,ed25519 127.0.0.1 2>&1 | head -5",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "",
+    "stdout_excludes": []
+  }
+}

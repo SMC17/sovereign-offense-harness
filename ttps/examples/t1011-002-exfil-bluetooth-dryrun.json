@@ -1,0 +1,12 @@
+{
+  "id": "T1011.002",
+  "name": "Exfiltration Over Other Network Medium: Bluetooth (DRY-RUN)",
+  "description": "Exfiltration / TA0010. The real technique exfils data over an out-of-band radio medium. This descriptor is DRY-RUN: it enumerates local Bluetooth interfaces via `hciconfig -a` (read-only) but does NOT pair, transmit, or initiate any Bluetooth traffic. Captures the recon surface that precedes a real OOB-exfil attempt. If hciconfig isn't installed, the envelope captures that as a system-software fingerprint.",
+  "platforms": ["linux"],
+  "exec": "echo '--- T1011.002 DRY-RUN: Bluetooth recon only ---'; hciconfig -a 2>/dev/null | head -10 || echo '(hciconfig not installed)'; echo 'no pairing, no transmission, no Bluetooth syscall invoked'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "DRY-RUN",
+    "stdout_excludes": []
+  }
+}
