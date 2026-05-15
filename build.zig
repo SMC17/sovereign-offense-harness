@@ -39,4 +39,18 @@ pub fn build(b: *std.Build) void {
     });
     integration_test.step.dependOn(b.getInstallStep());
     test_step.dependOn(&integration_test.step);
+
+    // Documentation tests — verify the README's executable claims hold
+    // against the installed binary (documented subcommands + flags appear
+    // in --help, the safety-gate refusal text matches the README quote,
+    // and a benign --unsafe-local run produces the documented envelope
+    // shape). Separate step from `test` because doctest is about README
+    // drift, not gate behavior (that's safety_gate_integration.sh).
+    const doctest = b.addSystemCommand(&.{ "bash", "tools/doctest.sh" });
+    doctest.step.dependOn(b.getInstallStep());
+    const doctest_step = b.step(
+        "doctest",
+        "Verify README's documented CLI surface + envelope shape match the binary",
+    );
+    doctest_step.dependOn(&doctest.step);
 }

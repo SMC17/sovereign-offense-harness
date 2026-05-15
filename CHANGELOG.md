@@ -1,5 +1,42 @@
 ## Unreleased
 
+### Added — documentation tests
+
+- **`tools/doctest.sh`** — 20-check documentation-test harness, wired
+  into `build.zig` as `zig build doctest`. Models the same discipline
+  shipped on `zig-cobs`, `zig-frame-protocol`, `zig-graph`, and
+  `zig-h3`. Doctest is concerned with README *drift*, not safety-gate
+  *behavior* (the latter is covered by `tests/safety_gate_integration.sh`,
+  unchanged at 6 / 6 passing). Checks:
+  - README documents `run` and `validate` subcommands AND they both
+    appear in the binary's `--help` output.
+  - Every documented CLI flag (`--ttp`, `--art`, `--art-test`,
+    `--target`, `--unsafe-local`, `--lab-targets`) appears in `--help`.
+    Drift on a flag — added to README, removed from `--help`, or
+    vice-versa — fails doctest.
+  - The README's quoted `refused by safety gate` message in the Safety
+    section matches what the binary actually prints to stderr on a
+    no-auth `run`, and the exit code is 3 (the documented "refused by
+    safety gate" code in `--help`'s exit-codes table).
+  - The README Demo block's envelope shape (top-level `schema`, `ttp.id`,
+    `execution.exit_code`, `host.hostname`, `verdict`) matches a real
+    `--unsafe-local` run of the shipped T1082 enumeration TTP, and the
+    schema URI is `sovereign-offense-harness/envelope/v1`.
+  - The Authorized-Use-Only notice + THREAT_MODEL.md reference remain
+    present in the README. The threat model claims that notice is
+    non-negotiable; doctest treats it as such — deletion fails the test.
+- The check uses `--unsafe-local` against a benign read-only TTP
+  (`t1082-system-information-discovery.json` — `uname -a` + `cat
+  /etc/os-release`) targeted at a scratch envelope dir; doctest does
+  not write outside `mktemp -d`.
+- Honest scope: doctest verifies that the README's *executable* claims
+  match the binary's *observable* behavior. It does NOT verify prose
+  claims (e.g. "no third-party deps", "single-author project"). Those
+  are properties of the build system and the repo, not of the
+  documentation-vs-code contract.
+- `zig build test` is unchanged at 24 unit tests + 6 safety-gate
+  integration cases (9 / 9 mutation operators still killed).
+
 ### Added — mutation testing discipline
 
 - `tools/mutation-test.sh` — stylized mutation-testing harness applying
