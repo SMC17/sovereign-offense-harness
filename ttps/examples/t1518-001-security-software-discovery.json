@@ -1,0 +1,12 @@
+{
+  "id": "T1518.001",
+  "name": "Software Discovery: Security Software Discovery",
+  "description": "Discovery / TA0007. Enumerate locally-running security software / EDR / antivirus processes. An attacker uses this to identify defensive controls before attempting evasion. Read-only `ps` filtered for known-security-tool process names (auditd, falco, osquery, crowdsec, aide, tripwire, ossec, wazuh, clamav, freshclam). Captures whether any are running without invoking them.",
+  "platforms": ["linux"],
+  "exec": "ps -eo comm 2>/dev/null | sort -u | grep -iE 'auditd|falco|osquery|crowdsec|aide|tripwire|ossec|wazuh|clamav|freshclam' | head -10; ps -eo comm 2>/dev/null | sort -u | grep -iE 'auditd|falco|osquery|crowdsec|aide|tripwire|ossec|wazuh|clamav|freshclam' >/dev/null 2>&1 && echo 'security software detected' || echo 'no listed security software detected (does NOT mean none is installed — only that none of the canonical-named processes is running)'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "",
+    "stdout_excludes": []
+  }
+}

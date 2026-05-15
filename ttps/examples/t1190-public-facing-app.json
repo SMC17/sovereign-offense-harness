@@ -1,0 +1,12 @@
+{
+  "id": "T1190",
+  "name": "Exploit Public-Facing Application (loopback banner probe)",
+  "description": "Initial Access / TA0001. Probe loopback port 80 for an HTTP server banner. The probe is a connect-and-read with a 2-second timeout; nothing is sent that would resemble an exploit payload. Captures the service-fingerprinting step that precedes exploitation. Loopback-only: target 127.0.0.1 is structural in the exec field.",
+  "platforms": ["linux"],
+  "exec": "echo '--- loopback :80 banner probe ---'; timeout 2 bash -c 'exec 3<>/dev/tcp/127.0.0.1/80 2>/dev/null && (printf \"HEAD / HTTP/1.0\\r\\n\\r\\n\" >&3; head -c 200 <&3) || echo \"no listener on 127.0.0.1:80 (probe failed — expected on a host without httpd)\"'; echo 'note: TCP connect to loopback only. no exploit payload sent.'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "loopback",
+    "stdout_excludes": []
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "id": "T1485",
+  "name": "Data Destruction (DRY-RUN only)",
+  "description": "Impact / TA0040. The real technique is destructive deletion of files / volumes. This descriptor is DRY-RUN ONLY: it prints the path it WOULD target (`/tmp/sovereign-offense-harness-dryrun-target-DOES-NOT-EXIST`) and exits without invoking rm or any destructive syscall. Included so the coverage matrix has an honest Impact entry. The TTP runner's safety gate (refuse-by-default + --target whitelist) is structural here: even if the exec line were rewritten to invoke rm, the gate would still refuse without --unsafe-local.",
+  "platforms": ["linux"],
+  "exec": "echo 'T1485 DRY-RUN: would target /tmp/sovereign-offense-harness-dryrun-target-DOES-NOT-EXIST'; echo 'no destructive syscall invoked'; echo 'no rm, no truncate, no >, no unlink'; ls /tmp/sovereign-offense-harness-dryrun-target-DOES-NOT-EXIST 2>&1 | head -1",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "DRY-RUN",
+    "stdout_excludes": []
+  }
+}

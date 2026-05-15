@@ -1,0 +1,12 @@
+{
+  "id": "T1548.003",
+  "name": "Abuse Elevation Control Mechanism: Sudo and Sudo Caching",
+  "description": "Privilege Escalation / TA0004. Run `sudo -n -l` (non-interactive list mode). Captures what the current user could escalate to via sudo without entering a password. Read-only — does NOT execute any sudo'd command. Useful for post-foothold privesc enumeration. On systems with no sudo entry for the current user, sudo exits 1; that exit code is captured in the envelope and is not a TTP failure.",
+  "platforms": ["linux"],
+  "exec": "sudo -n -l 2>&1 || echo 'sudo unavailable or no entry (exit code captured in envelope)'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "",
+    "stdout_excludes": []
+  }
+}

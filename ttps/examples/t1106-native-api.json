@@ -1,0 +1,12 @@
+{
+  "id": "T1106",
+  "name": "Native API (proc-self-syscall probe)",
+  "description": "Execution / TA0002. Native-API techniques on Linux are largely about direct syscalls bypassing libc. As a non-malicious proxy, read /proc/self/syscall — which exposes the syscall that proc-fs uses to read syscall — and /proc/self/status. Read-only inspection of kernel-userspace boundary surfaces. No syscall is invoked outside the read itself.",
+  "platforms": ["linux"],
+  "exec": "echo '--- /proc/self/syscall ---'; cat /proc/self/syscall 2>/dev/null | head -3 || echo '(no /proc/self/syscall)'; echo '--- /proc/self/status (first 10) ---'; head -10 /proc/self/status",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "---",
+    "stdout_excludes": []
+  }
+}

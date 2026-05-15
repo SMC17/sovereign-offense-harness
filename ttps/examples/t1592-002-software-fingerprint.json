@@ -1,0 +1,12 @@
+{
+  "id": "T1592.002",
+  "name": "Gather Victim Host Information: Software (installed-package fingerprint)",
+  "description": "Reconnaissance / TA0043. Enumerate installed packages on the host. Tries `dpkg -l` (Debian/Ubuntu), `rpm -qa` (RHEL/Fedora), `apk info` (Alpine), `pacman -Q` (Arch) in order; the first that produces output is the fingerprint. Read-only; captures the software inventory an attacker would use to fingerprint the host for known-CVE matching.",
+  "platforms": ["linux"],
+  "exec": "echo '--- installed package fingerprint ---'; (dpkg -l 2>/dev/null | head -5 || rpm -qa 2>/dev/null | head -5 || apk info 2>/dev/null | head -5 || pacman -Q 2>/dev/null | head -5 || echo '(no package manager found)')",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "---",
+    "stdout_excludes": []
+  }
+}

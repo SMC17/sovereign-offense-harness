@@ -2,14 +2,21 @@
 
 ## Honest summary
 
-This repository ships **12 TTP descriptors + 1 ART YAML adapter example**
-covering **6 of MITRE ATT&CK Enterprise's 14 tactic columns**.
+This repository ships **30 TTP descriptors + 1 ART YAML adapter example**
+covering **all 14 of MITRE ATT&CK Enterprise's tactic columns** (at least
+one TTP per column; depth still narrow per column).
 
 Reference matrix: **MITRE ATT&CK Enterprise v17.1** (April 2026 release;
 14 tactic columns, ~200 top-level techniques, ~450 sub-techniques as
 counted on the public Navigator).
 
-**Counted coverage: 12 / ~650 technique+sub-technique entries ≈ 1.8%.**
+**Counted coverage: 30 / ~650 technique+sub-technique entries ≈ 4.6%.**
+
+The breadth-vs-depth tradeoff is now explicit: every ATT&CK column has at
+least one demo-able TTP, but most columns ship 1–3 TTPs not the dozens
+Atomic Red Team / Caldera offer. The endzone milestone for this version
+was **column coverage** (every tactic represented), not technique depth
+within columns. Depth is the next axis to grow.
 
 The honest framing is the only credible one. This repo is not a
 breadth-coverage tool and does not claim to be. Atomic Red Team

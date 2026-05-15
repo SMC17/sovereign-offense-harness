@@ -1,0 +1,12 @@
+{
+  "id": "T1059.004",
+  "name": "Command and Scripting Interpreter: Unix Shell",
+  "description": "Execution / TA0002. Run a benign command through bash -c, capturing the shell-execution audit trail. The command is a stable test marker (`echo TTP-T1059-004-OK`) so the envelope's stdout_contains assertion is deterministic. The point is to exercise the shell-invocation code path under the audit envelope, not to demo a malicious shell action.",
+  "platforms": ["linux"],
+  "exec": "bash -c 'echo TTP-T1059-004-OK; echo \"shell=$SHELL\"; echo \"pid=$$\"'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "TTP-T1059-004-OK",
+    "stdout_excludes": []
+  }
+}

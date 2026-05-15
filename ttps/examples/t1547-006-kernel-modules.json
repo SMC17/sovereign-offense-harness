@@ -1,0 +1,12 @@
+{
+  "id": "T1547.006",
+  "name": "Boot or Logon Autostart Execution: Kernel Modules and Extensions (read)",
+  "description": "Persistence / TA0003 + Privilege Escalation / TA0004. Read-only enumeration of loaded kernel modules via `lsmod` plus the persistent module list at /etc/modules-load.d/. An attacker would use this to identify modules to inject into or replace. Captures the post-foothold persistence-surface enumeration step. No modules loaded or modified.",
+  "platforms": ["linux"],
+  "exec": "echo '--- loaded modules (first 10) ---'; lsmod 2>&1 | head -11 || echo '(no lsmod)'; echo '--- /etc/modules-load.d/ ---'; ls /etc/modules-load.d/ 2>/dev/null || echo '(no modules-load.d)'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "---",
+    "stdout_excludes": []
+  }
+}

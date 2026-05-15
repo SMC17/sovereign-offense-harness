@@ -1,0 +1,12 @@
+{
+  "id": "T1083",
+  "name": "File and Directory Discovery",
+  "description": "Discovery / TA0007. Enumerate top-level directories on the host via `find / -maxdepth 2 -type d`. Read-only; captures the directory-tree shape an attacker would inspect post-foothold to locate interesting paths (config, credentials, app code).",
+  "platforms": ["linux"],
+  "exec": "find / -maxdepth 2 -type d 2>/dev/null | head -30",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "/",
+    "stdout_excludes": []
+  }
+}

